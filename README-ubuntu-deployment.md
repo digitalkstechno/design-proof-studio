@@ -96,7 +96,8 @@ Add the following configuration (replace `your_domain_or_ip` with your server's 
 ```nginx
 server {
     listen 80;
-    server_name your_domain_or_ip;
+    server_name nlc.digitalks.co.in; # Change this to your actual domain
+
 
     # Route requests to the FastAPI backend and web frontend
     location / {
@@ -141,9 +142,23 @@ Allow HTTP traffic through the firewall:
 sudo ufw allow 'Nginx Full'
 ```
 
-## Step 8: Test Your Deployment
+## Step 8: Secure with SSL (Fix "Connection is not private" error)
+To secure your site with HTTPS and avoid browser warnings, use Let's Encrypt via Certbot.
+
+Install Certbot and its Nginx plugin:
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+```
+
+Run Certbot to automatically configure SSL for your domain:
+```bash
+sudo certbot --nginx -d nlc.digitalks.co.in
+```
+Follow the interactive prompts (enter your email, agree to the TOS). Certbot will automatically update your Nginx configuration to use HTTPS and reload Nginx.
+
+## Step 9: Test Your Deployment
 Open your web browser and navigate to:
-- Frontend: `http://your_domain_or_ip/web/`
-- API Docs: `http://your_domain_or_ip/docs`
+- Frontend: `https://nlc.digitalks.co.in/web/`
+- API Docs: `https://nlc.digitalks.co.in/docs`
 
 Your Design Proof Studio should now be live!

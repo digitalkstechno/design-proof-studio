@@ -1,0 +1,1099 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Design Proof Studio</title>
+  <style>
+    :root {
+      --bg: #f4f7f6;
+      --panel: #ffffff;
+      --text: #182123;
+      --muted: #607174;
+      --line: #d7dfde;
+      --accent: #145143;
+      --accent-soft: #e8f3ef;
+      --shadow: 0 14px 40px rgba(14, 34, 28, 0.08);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #f7faf9 0%, var(--bg) 100%);
+      color: var(--text);
+    }
+    .shell { max-width: 1900px; margin: 0 auto; padding: 16px; }
+    .hero {
+      display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 22px;
+      flex-wrap: wrap;
+    }
+    .hero h1 { margin: 0 0 8px; font-size: clamp(2rem, 3vw, 3rem); }
+    .hero p { margin: 0; color: var(--muted); max-width: 850px; line-height: 1.55; }
+    .pills { display: flex; gap: 10px; flex-wrap: wrap; }
+    .pill {
+      background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 10px 14px; font-size: 13px; color: var(--muted);
+    }
+    .layout {
+      display: grid; grid-template-columns: minmax(345px, 470px) minmax(420px, 1fr); gap: 12px;
+      align-items: start;
+    }
+    .panel {
+      background: var(--panel); border: 1px solid rgba(20,81,67,.08); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden;
+    }
+    .panel-head {
+      padding: 22px 24px 16px; border-bottom: 1px solid var(--line);
+      display: flex; justify-content: space-between; gap: 16px; align-items: start;
+    }
+    .panel-head h2 { margin: 0 0 6px; font-size: 1.2rem; }
+    .panel-head p { margin: 0; color: var(--muted); font-size: .95rem; line-height: 1.45; }
+    .panel-body { padding: 22px 24px 24px; }
+    form { display: grid; gap: 18px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .field { display: grid; gap: 8px; }
+    label { font-size: .92rem; font-weight: 600; }
+    input[type="text"], input[type="number"] {
+      width: 100%; border: 1px solid #ccd8d6; border-radius: 12px; padding: 12px 14px; font-size: .96rem;
+      background: #fff; color: var(--text);
+    }
+    input[type="text"]:focus, input[type="number"]:focus, input[type="file"]:focus {
+      outline: none; border-color: #63a592; box-shadow: 0 0 0 4px rgba(20,81,67,.12);
+    }
+    input[type="file"] { width: 100%; }
+    .drop {
+      border: 1.5px dashed #b6c8c4; border-radius: 16px; padding: 16px; background: #fbfdfc; display: grid; gap: 8px; cursor: pointer;
+      transition: .18s ease; min-height: 96px; align-content: center;
+    }
+    .drop:hover, .drop.drag { border-color: var(--accent); background: var(--accent-soft); }
+    .drop strong { font-size: .98rem; }
+    .drop small { color: var(--muted); }
+    .drop.has-file { border-style: solid; border-color: #7db19f; background: #f5fbf8; }
+    .section-title { font-size: .8rem; letter-spacing: .08em; color: #637377; text-transform: uppercase; margin: 0; font-weight: 800; }
+    .details {
+      border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fcfdfd;
+    }
+    details summary {
+      list-style: none; cursor: pointer; padding: 14px 16px; font-weight: 700; display: flex; justify-content: space-between; align-items: center;
+    }
+    details summary::-webkit-details-marker { display: none; }
+    details[open] summary { border-bottom: 1px solid var(--line); }
+    .details-body { padding: 16px; display: grid; gap: 14px; }
+    .slider-row {
+      display: grid; grid-template-columns: 1fr 82px; gap: 12px; align-items: center;
+    }
+    .slider-wrap { display: grid; gap: 6px; }
+    .slider-label { display: flex; justify-content: space-between; gap: 10px; font-size: .9rem; }
+    .slider-label span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .actions {
+      display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+    }
+    button, .btn {
+      border: 0; border-radius: 12px; padding: 13px 16px; font-size: .96rem; font-weight: 700; cursor: pointer;
+      text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .primary { background: var(--accent); color: #fff; }
+    .secondary { background: #eef4f2; color: var(--text); border: 1px solid #d6e1df; }
+    button:disabled { opacity: .65; cursor: wait; }
+    .fine { margin: 0; color: var(--muted); font-size: .88rem; line-height: 1.45; }
+    .error {
+      display: none; padding: 12px 14px; border-radius: 12px; background: #fff1f1; border: 1px solid #f1c0c0; color: #8e2020;
+      font-size: .92rem;
+    }
+    .preview-panel .panel-head { align-items: center; }
+    .preview-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .stage {
+      background: linear-gradient(180deg, #edf3f2 0%, #eff2f4 100%);
+      min-height: 520px; display: grid; place-items: center; padding: 6px; position: relative;
+    }
+    .preview-frame {
+      background: repeating-linear-gradient(45deg, #f7fbfb, #f7fbfb 12px, #f0f5f4 12px, #f0f5f4 24px);
+      border: 1px solid #d4dfdd; border-radius: 12px; padding: 5px; width: 100%; height: 100%; min-height: 480px;
+      display: grid; place-items: center;
+    }
+    canvas {
+      max-width: 100%; height: auto; width: auto; display: block; background: #fff; border-radius: 8px;
+      box-shadow: 0 20px 55px rgba(15, 34, 29, .16);
+    }
+    .stage:has(canvas:not(.hidden)), .preview-frame:has(canvas:not(.hidden)) { min-height: 0; }
+    .empty { text-align: center; color: var(--muted); max-width: 380px; }
+    .empty strong { display: block; color: var(--text); margin-bottom: 8px; font-size: 1.08rem; }
+    .meta {
+      display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+      padding: 16px 22px 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: .92rem;
+    }
+    .hidden { display: none !important; }
+    @media (max-width: 1180px) {
+      .layout { grid-template-columns: 1fr; }
+      .stage { min-height: 440px; }
+      .preview-frame { min-height: 420px; }
+    }
+    @media (max-width: 640px) {
+      .shell { padding: 16px; }
+      .grid2, .slider-row { grid-template-columns: 1fr; }
+      .stage { min-height: 380px; padding: 6px; }
+      .preview-frame { min-height: 360px; padding: 6px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="hero">
+      <div>
+        <h1>Design Proof Studio</h1>
+        <p>Upload your logo and design, edit the text, adjust each font size, and see a live preview instantly before generating the final full-resolution PNG.</p>
+      </div>
+      <div class="pills">
+        <div class="pill">Live browser preview</div>
+        <div class="pill">Editable typography</div>
+        <div class="pill">Final PNG via FastAPI</div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Controls</h2>
+            <p>Adjust your proof visually, then render the final output. Preview updates automatically while you type or move sliders.</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          <form id="proofForm">
+            <div class="grid2">
+              <div class="field">
+                <label>Logo</label>
+                <label class="drop" id="logoDrop">
+                  <input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
+                  <strong id="logoTitle">NLC Logo.png</strong>
+                  <small id="logoDesc">Default logo · click to replace</small>
+                </label>
+              </div>
+              <div class="field">
+                <label>Design artwork</label>
+                <label class="drop" id="designDrop">
+                  <input id="design" name="design" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
+                  <strong id="designTitle">Upload design</strong>
+                  <small id="designDesc">Original artwork · 25 MB max</small>
+                </label>
+              </div>
+            </div>
+
+            <p class="section-title">Main content</p>
+            <div class="grid2">
+              <div class="field"><label for="category">Category</label><input id="category" name="category" maxlength="80" value="Hot Fix Design" required /></div>
+              <div class="field"><label for="subcategory">Subcategory</label><input id="subcategory" name="subcategory" maxlength="100" value="Val jerkin Designs" required /></div>
+            </div>
+            <div class="field"><label for="design_type">Design Type</label><input id="design_type" name="design_type" maxlength="100" value="Suit/Gala" required /></div>
+            <div class="grid2">
+              <div class="field"><label for="design_id">Design ID</label><input id="design_id" name="design_id" maxlength="50" value="NLC-8340/4" required /></div>
+              <div class="field"><label for="seller">Seller name</label><input id="seller" name="seller" maxlength="100" value="Alpeshbhai Rajni" required /></div>
+            </div>
+            <div class="grid2">
+              <div class="field"><label for="company_name">Company name</label><input id="company_name" name="company_name" maxlength="80" value="NLC Design" required /></div>
+              <div class="field"><label for="company_website">Company website</label><input id="company_website" name="company_website" maxlength="120" value="www.nlcdesign.in" required /></div>
+            </div>
+
+            <div class="details">
+              <details open>
+                <summary>Quick adjustments <span>Live</span></summary>
+                <div class="details-body">
+                  <div class="slider-row">
+                    <div class="slider-wrap">
+                      <div class="slider-label"><span>Watermark opacity</span><span data-readout-for="watermark_opacity">16%</span></div>
+                      <input id="watermark_opacity" name="watermark_opacity" type="range" min="0" max="100" value="16" step="1" data-format="percent" />
+                    </div>
+                    <input type="number" min="0" max="100" value="16" data-sync="watermark_opacity" />
+                  </div>
+                  <div class="slider-row">
+                    <div class="slider-wrap">
+                      <div class="slider-label"><span>Watermark size</span><span data-readout-for="watermark_size">125%</span></div>
+                      <input id="watermark_size" name="watermark_size" type="range" min="40" max="250" value="125" step="5" data-format="percent" />
+                    </div>
+                    <input type="number" min="40" max="250" value="125" data-sync="watermark_size" />
+                  </div>
+                  <div class="slider-row">
+                    <div class="slider-wrap">
+                      <div class="slider-label"><span>Watermark spacing</span><span data-readout-for="watermark_spacing">135%</span></div>
+                      <input id="watermark_spacing" name="watermark_spacing" type="range" min="50" max="250" value="135" step="5" data-format="percent" />
+                    </div>
+                    <input type="number" min="50" max="250" value="135" data-sync="watermark_spacing" />
+                  </div>
+                  <p class="fine">Your original logo colors are preserved. White paper backgrounds on opaque logos are removed from watermark stamps automatically.</p>
+                  <div class="field">
+                    <label for="watermark_scope">Watermark area</label>
+                    <select id="watermark_scope" name="watermark_scope" style="width:100%; border:1px solid #ccd8d6; border-radius:12px; padding:12px 14px; font-size:.96rem; background:#fff; color:var(--text);">
+                      <option value="artwork" selected>Uploaded artwork only</option>
+                      <option value="page">Full page</option>
+                    </select>
+                  </div>
+                  <div class="slider-row">
+                    <div class="slider-wrap">
+                      <div class="slider-label"><span>Logo scale</span><span data-readout-for="logo_scale">103%</span></div>
+                      <input id="logo_scale" name="logo_scale" type="range" min="40" max="180" value="103" step="1" data-format="percent" />
+                    </div>
+                    <input type="number" min="40" max="180" value="103" data-sync="logo_scale" />
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <div class="details">
+              <details open>
+                <summary>Header font sizes <span>Category / ID / Seller</span></summary>
+                <div class="details-body">
+                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Design details value</span><span data-readout-for="category_value_size">16.5 px</span></div><input id="category_value_size" name="category_value_size" type="range" min="8" max="38" value="16.5" step="0.5" data-format="px" /></div><input type="number" min="8" max="38" step="0.5" value="16.5" data-sync="category_value_size" /></div>
+                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Design ID title</span><span data-readout-for="design_id_title_size">19 px</span></div><input id="design_id_title_size" name="design_id_title_size" type="range" min="10" max="42" value="19" step="0.5" data-format="px" /></div><input type="number" min="10" max="42" step="0.5" value="19" data-sync="design_id_title_size" /></div>
+                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Design ID value</span><span data-readout-for="design_id_value_size">23 px</span></div><input id="design_id_value_size" name="design_id_value_size" type="range" min="8" max="42" value="23" step="0.5" data-format="px" /></div><input type="number" min="8" max="42" step="0.5" value="23" data-sync="design_id_value_size" /></div>
+                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Seller title</span><span data-readout-for="seller_title_size">17 px</span></div><input id="seller_title_size" name="seller_title_size" type="range" min="8" max="38" value="17" step="0.5" data-format="px" /></div><input type="number" min="8" max="38" step="0.5" value="17" data-sync="seller_title_size" /></div>
+                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Seller value</span><span data-readout-for="seller_value_size">18.5 px</span></div><input id="seller_value_size" name="seller_value_size" type="range" min="8" max="40" value="18.5" step="0.5" data-format="px" /></div><input type="number" min="8" max="40" step="0.5" value="18.5" data-sync="seller_value_size" /></div>
+                </div>
+              </details>
+            </div>
+
+            <div class="details">
+              <details>
+                <summary>Footer font sizes <span>Warning / brand / support</span></summary>
+                <div class="details-body">
+                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Warning title</span><span data-readout-for="warning_title_size">22 px</span></div><input id="warning_title_size" name="warning_title_size" type="range" min="10" max="42" value="22" step="0.5" data-format="px" /></div><input type="number" min="10" max="42" step="0.5" value="22" data-sync="warning_title_size" /></div>
+                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Warning subtitle</span><span data-readout-for="warning_subtitle_size">11.5 px</span></div><input id="warning_subtitle_size" name="warning_subtitle_size" type="range" min="8" max="28" value="11.5" step="0.5" data-format="px" /></div><input type="number" min="8" max="28" step="0.5" value="11.5" data-sync="warning_subtitle_size" /></div>
+                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Footer label</span><span data-readout-for="footer_label_size">14.5 px</span></div><input id="footer_label_size" name="footer_label_size" type="range" min="8" max="32" value="14.5" step="0.5" data-format="px" /></div><input type="number" min="8" max="32" step="0.5" value="14.5" data-sync="footer_label_size" /></div>
+                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Company name</span><span data-readout-for="company_name_size">23 px</span></div><input id="company_name_size" name="company_name_size" type="range" min="8" max="42" value="23" step="0.5" data-format="px" /></div><input type="number" min="8" max="42" step="0.5" value="23" data-sync="company_name_size" /></div>
+                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Company website</span><span data-readout-for="company_website_size">16 px</span></div><input id="company_website_size" name="company_website_size" type="range" min="8" max="32" value="16" step="0.5" data-format="px" /></div><input type="number" min="8" max="32" step="0.5" value="16" data-sync="company_website_size" /></div>
+                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Support line 1</span><span data-readout-for="support_title_size">29 px</span></div><input id="support_title_size" name="support_title_size" type="range" min="8" max="40" value="29" step="0.5" data-format="px" /></div><input type="number" min="8" max="40" step="0.5" value="29" data-sync="support_title_size" /></div>
+                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Support line 2</span><span data-readout-for="support_subtitle_size">31 px</span></div><input id="support_subtitle_size" name="support_subtitle_size" type="range" min="8" max="40" value="31" step="0.5" data-format="px" /></div><input type="number" min="8" max="40" step="0.5" value="31" data-sync="support_subtitle_size" /></div>
+                </div>
+              </details>
+            </div>
+
+            <div class="actions">
+              <button type="button" class="secondary" id="resetStyles">Reset styles</button>
+              <button type="submit" class="primary" id="generateBtn">Generate final PNG →</button>
+              <a href="#" id="downloadBtn" class="btn secondary" aria-disabled="true">Download result</a>
+            </div>
+            <div id="error" class="error" role="alert"></div>
+            <p class="fine">Preview is rendered live in your browser for speed. The Python API returns the final full-resolution PNG using the same values.</p>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel preview-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Live preview</h2>
+            <p id="statusText">Upload a logo and a design to start previewing.</p>
+          </div>
+          <div class="preview-tools">
+            <div class="pill" id="zoomLabel">Fit preview</div>
+          </div>
+        </div>
+        <div class="stage">
+          <div class="preview-frame">
+            <div id="emptyState" class="empty">
+              <strong>Your proof preview appears here</strong>
+              <div>As soon as you upload a logo and your design, the preview updates automatically while you edit text and font sizes.</div>
+            </div>
+            <canvas id="previewCanvas" class="hidden"></canvas>
+          </div>
+        </div>
+        <div class="meta">
+          <span id="sizeInfo">Output automatically adapts to your artwork size.</span>
+          <strong id="resultInfo">Ready when you are</strong>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULTS = {
+      watermark_opacity: 16,
+      watermark_scope: 'artwork',
+      watermark_size: 125,
+      watermark_spacing: 135,
+      logo_scale: 103,
+      category_value_size: 16.5,
+      design_id_title_size: 19,
+      design_id_value_size: 23,
+      seller_title_size: 17,
+      seller_value_size: 18.5,
+      warning_title_size: 22,
+      warning_subtitle_size: 11.5,
+      footer_label_size: 14.5,
+      company_name_size: 23,
+      company_website_size: 16,
+      support_title_size: 29,
+      support_subtitle_size: 31
+    };
+
+    const form = document.getElementById('proofForm');
+    const canvas = document.getElementById('previewCanvas');
+    const ctx = canvas.getContext('2d');
+    const emptyState = document.getElementById('emptyState');
+    const statusText = document.getElementById('statusText');
+    const sizeInfo = document.getElementById('sizeInfo');
+    const resultInfo = document.getElementById('resultInfo');
+    const generateBtn = document.getElementById('generateBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const error = document.getElementById('error');
+    const zoomLabel = document.getElementById('zoomLabel');
+
+    const assets = {
+      logo: null,
+      design: null,
+      logoUrl: null,
+      designUrl: null,
+      generatedUrl: null,
+      optimizedLogoBlob: null,
+      logoOptimizing: null,
+      logoIsDefault: false,
+      designHasTransparency: false,
+    };
+
+    const names = { logo: 'Logo', design: 'Design' };
+
+    function setStatus(message) { statusText.textContent = message; }
+    function showError(message) { error.textContent = message; error.style.display = 'block'; }
+    function clearError() { error.style.display = 'none'; error.textContent = ''; }
+
+    function formatReadout(input) {
+      const value = Number(input.value);
+      const format = input.dataset.format;
+      if (format === 'percent') return `${Math.round(value)}%`;
+      if (Number.isInteger(value)) return `${value} px`;
+      return `${value.toFixed(1)} px`;
+    }
+
+    function refreshReadouts() {
+      document.querySelectorAll('input[type="range"]').forEach(input => {
+        const readout = document.querySelector(`[data-readout-for="${input.id}"]`);
+        if (readout) readout.textContent = formatReadout(input);
+      });
+    }
+
+    function syncPairs() {
+      document.querySelectorAll('[data-sync]').forEach(numberInput => {
+        const source = document.getElementById(numberInput.dataset.sync);
+        if (!source) return;
+        source.addEventListener('input', () => { numberInput.value = source.value; refreshReadouts(); updatePreview(); });
+        numberInput.addEventListener('input', () => {
+          source.value = numberInput.value;
+          refreshReadouts();
+          updatePreview();
+        });
+      });
+    }
+
+
+    function detectTransparency(img) {
+      try {
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+        const probe = document.createElement('canvas');
+        probe.width = Math.min(w, 512);
+        probe.height = Math.min(h, 512);
+        const pctx = probe.getContext('2d', { willReadFrequently: true });
+        pctx.drawImage(img, 0, 0, probe.width, probe.height);
+        const alpha = pctx.getImageData(0, 0, probe.width, probe.height).data;
+        for (let i = 3; i < alpha.length; i += 4) {
+          if (alpha[i] < 250) return true;
+        }
+      } catch (error) {
+        console.warn('Transparency probe failed', error);
+      }
+      return false;
+    }
+
+    function drawCheckerboard(context, x, y, width, height, cell = 10) {
+      const a = '#f4f6f7';
+      const b = '#e8ecee';
+      for (let row = 0; row < Math.ceil(height / cell); row++) {
+        for (let col = 0; col < Math.ceil(width / cell); col++) {
+          context.fillStyle = (row + col) % 2 === 0 ? a : b;
+          context.fillRect(x + col * cell, y + row * cell, cell, cell);
+        }
+      }
+    }
+
+    function loadDefaultLogo() {
+      const img = new Image();
+      img.onload = () => {
+        assets.logo = img;
+        assets.logoIsDefault = true;
+        assets.logoUrl = null;
+        assets.optimizedLogoBlob = null;
+        assets.logoOptimizing = null;
+        const drop = document.getElementById('logoDrop');
+        const title = document.getElementById('logoTitle');
+        const desc = document.getElementById('logoDesc');
+        if (drop) drop.classList.add('has-file');
+        if (title) title.textContent = 'NLC Logo.png';
+        if (desc) desc.textContent = 'Default logo · click to replace';
+        updatePreview();
+      };
+      img.onerror = () => showError('Could not load the default NLC Logo.png.');
+      img.src = '/api/v1/default-logo?v=2.4.0';
+    }
+
+    function setupDrop(key) {
+      const input = document.getElementById(key);
+      const drop = document.getElementById(`${key}Drop`);
+      const title = document.getElementById(`${key}Title`);
+      const desc = document.getElementById(`${key}Desc`);
+
+      function updateLabel() {
+        const file = input.files && input.files[0];
+        const usingDefaultLogo = key === 'logo' && assets.logoIsDefault && !file;
+        drop.classList.toggle('has-file', !!file || usingDefaultLogo);
+        title.textContent = file ? file.name : (usingDefaultLogo ? 'NLC Logo.png' : `Upload ${key === 'logo' ? 'logo' : 'design'}`);
+        desc.textContent = file
+          ? `${(file.size / (1024 * 1024)).toFixed(2)} MB · ${names[key]} selected`
+          : (usingDefaultLogo ? 'Default logo · click to replace' : (key === 'logo' ? 'NLC Logo.png will be used by default' : 'Original artwork · 25 MB max'));
+      }
+
+      async function loadAsset() {
+        clearError();
+        const file = input.files && input.files[0];
+        if (!file) {
+          if (key === 'logo') {
+            loadDefaultLogo();
+            return;
+          }
+          assets[key] = null;
+          assets.designHasTransparency = false;
+          updateLabel();
+          updatePreview();
+          return;
+        }
+        if (file.size > 25 * 1024 * 1024) {
+          showError(`${names[key]} must be 25 MB or smaller.`);
+          input.value = '';
+          assets[key] = null;
+          updateLabel();
+          updatePreview();
+          return;
+        }
+        if (assets[`${key}Url`]) URL.revokeObjectURL(assets[`${key}Url`]);
+        const objectUrl = URL.createObjectURL(file);
+        assets[`${key}Url`] = objectUrl;
+        const img = new Image();
+        img.onload = () => {
+          if (assets[`${key}Url`] !== objectUrl) return;
+          assets[key] = img;
+          if (key === 'design') assets.designHasTransparency = detectTransparency(img);
+          if (key === 'logo') {
+            assets.logoIsDefault = false;
+            assets.optimizedLogoBlob = null;
+            // A high-resolution logo is still drawn at only a few hundred
+            // pixels on the sheet. Send a smaller copy, never the huge source.
+            if (Math.max(img.naturalWidth, img.naturalHeight) > 2048) {
+              assets.logoOptimizing = new Promise(resolve => {
+                const ratio = Math.min(1, 2048 / Math.max(img.naturalWidth, img.naturalHeight));
+                const temp = document.createElement('canvas');
+                temp.width = Math.max(1, Math.round(img.naturalWidth * ratio));
+                temp.height = Math.max(1, Math.round(img.naturalHeight * ratio));
+                const painter = temp.getContext('2d');
+                painter.drawImage(img, 0, 0, temp.width, temp.height);
+                temp.toBlob(blob => {
+                  if (assets.logoUrl === objectUrl && blob) assets.optimizedLogoBlob = blob;
+                  resolve();
+                }, 'image/png');
+              });
+            } else {
+              assets.logoOptimizing = null;
+            }
+          }
+          updateLabel();
+          updatePreview();
+        };
+        img.onerror = () => showError(`Could not read ${key} image.`);
+        img.src = objectUrl;
+      }
+
+      input.addEventListener('change', loadAsset);
+      ['dragenter', 'dragover'].forEach(type => drop.addEventListener(type, event => { event.preventDefault(); drop.classList.add('drag'); }));
+      ['dragleave', 'drop'].forEach(type => drop.addEventListener(type, event => { event.preventDefault(); drop.classList.remove('drag'); }));
+      drop.addEventListener('drop', event => {
+        if (event.dataTransfer.files?.length) {
+          input.files = event.dataTransfer.files;
+          loadAsset();
+        }
+      });
+      updateLabel();
+    }
+
+    function valueOf(id, fallback = '') {
+      const el = document.getElementById(id);
+      return el ? el.value : fallback;
+    }
+
+    function num(id, fallback = 0) {
+      const v = Number(valueOf(id, fallback));
+      return Number.isFinite(v) ? v : fallback;
+    }
+
+    function getState() {
+      return {
+        category: valueOf('category'),
+        subcategory: valueOf('subcategory'),
+        design_type: valueOf('design_type'),
+        design_id: valueOf('design_id'),
+        seller: valueOf('seller'),
+        company_name: valueOf('company_name'),
+        company_website: valueOf('company_website'),
+        watermark_opacity: num('watermark_opacity') / 100,
+        watermark_size: num('watermark_size') / 100,
+        watermark_spacing: num('watermark_spacing') / 100,
+        watermark_scope: valueOf('watermark_scope', 'artwork'),
+        logo_scale: num('logo_scale') / 100,
+        category_value_size: num('category_value_size'),
+        design_id_title_size: num('design_id_title_size'),
+        design_id_value_size: num('design_id_value_size'),
+        seller_title_size: num('seller_title_size'),
+        seller_value_size: num('seller_value_size'),
+        warning_title_size: num('warning_title_size'),
+        warning_subtitle_size: num('warning_subtitle_size'),
+        footer_label_size: num('footer_label_size'),
+        company_name_size: num('company_name_size'),
+        company_website_size: num('company_website_size'),
+        support_title_size: num('support_title_size'),
+        support_subtitle_size: num('support_subtitle_size'),
+      };
+    }
+
+    function wrapText(context, text, maxWidth) {
+      const out = [];
+      const paragraphs = String(text || '').split('\n');
+      for (const paragraph of paragraphs) {
+        const trimmed = paragraph.trim();
+        if (!trimmed) { out.push(''); continue; }
+        const words = trimmed.split(/\s+/);
+        let line = '';
+        for (const word of words) {
+          const candidate = line ? `${line} ${word}` : word;
+          if (context.measureText(candidate).width <= maxWidth) {
+            line = candidate;
+            continue;
+          }
+          if (line) out.push(line);
+          line = '';
+          if (context.measureText(word).width <= maxWidth) {
+            line = word;
+            continue;
+          }
+          let chunk = '';
+          for (const char of word) {
+            const next = chunk + char;
+            if (chunk && context.measureText(next).width > maxWidth) {
+              out.push(chunk);
+              chunk = char;
+            } else {
+              chunk = next;
+            }
+          }
+          line = chunk;
+        }
+        if (line) out.push(line);
+      }
+      return out.length ? out : [''];
+    }
+
+    function drawTextBlock(context, text, rect, options = {}) {
+      const {
+        size = 16,
+        kind = 'regular',
+        color = '#17191D',
+        align = 'left',
+        maxLines = 3,
+        minSize = 9,
+      } = options;
+      const [x, y, maxW, maxH] = rect;
+      let fontSize = Math.max(minSize, size);
+      let lines = [String(text || '')];
+      let lineHeight = fontSize * 1.22;
+      let fontFamily = kind === 'italic' ? 'Georgia, serif' : 'Arial, Helvetica, sans-serif';
+      let weight = kind === 'bold' ? '700' : '400';
+      let style = kind === 'italic' ? 'italic' : 'normal';
+
+      for (let pt = Math.max(minSize, size); pt >= minSize; pt -= 0.5) {
+        context.font = `${style} ${weight} ${pt}px ${fontFamily}`;
+        const wrapped = wrapText(context, text, maxW);
+        const lh = Math.max(11, pt * 1.22);
+        if (wrapped.length <= maxLines && wrapped.length * lh <= maxH) {
+          fontSize = pt;
+          lines = wrapped;
+          lineHeight = lh;
+          break;
+        }
+      }
+
+      context.font = `${style} ${weight} ${fontSize}px ${fontFamily}`;
+      context.fillStyle = color;
+      context.textBaseline = 'top';
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const lineWidth = context.measureText(line).width;
+        let lineX = x;
+        if (align === 'center') lineX = x + (maxW - lineWidth) / 2;
+        else if (align === 'right') lineX = x + maxW - lineWidth;
+        context.fillText(line, Math.round(lineX), y + i * lineHeight);
+      }
+    }
+
+    function fitWithin(w, h, maxW, maxH) {
+      const scale = Math.min(maxW / w, maxH / h, 1);
+      return { width: Math.max(1, Math.round(w * scale)), height: Math.max(1, Math.round(h * scale)) };
+    }
+
+    function drawWatermarkPattern(context, logoImg, box, layout, previewScale, opacity, watermarkSize, watermarkSpacing) {
+      if (!logoImg || opacity <= 0) return;
+      const bodyLeft = box.x;
+      const bodyTop = box.y;
+      const bodyRight = box.x + box.width;
+      const bodyBottom = box.y + box.height;
+      const regionWidth = box.width;
+      const markWidth = Math.max(40, Math.round(regionWidth * 0.145 * watermarkSize)) * previewScale;
+      const originalW = logoImg.naturalWidth || logoImg.width;
+      const originalH = logoImg.naturalHeight || logoImg.height;
+      const off = document.createElement('canvas');
+      off.width = Math.max(1, Math.round(markWidth));
+      off.height = Math.max(1, Math.round(originalH * off.width / originalW));
+      const offCtx = off.getContext('2d', { willReadFrequently: true });
+      offCtx.drawImage(logoImg, 0, 0, off.width, off.height);
+      const imageData = offCtx.getImageData(0, 0, off.width, off.height);
+      const data = imageData.data;
+      let hasTransparency = false;
+      for (let i = 3; i < data.length; i += 4) {
+        if (data[i] < 255) { hasTransparency = true; break; }
+      }
+      const corners = [0, (off.width - 1) * 4,
+        ((off.height - 1) * off.width) * 4, (off.width * off.height - 1) * 4];
+      const whiteCorners = corners.filter(i => data[i] >= 245 && data[i+1] >= 245 && data[i+2] >= 245).length;
+      const removeWhitePaper = !hasTransparency && whiteCorners >= 3;
+      for (let i = 0; i < data.length; i += 4) {
+        let matte = 1;
+        if (removeWhitePaper) {
+          const luminance = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+          matte = Math.max(0, Math.min(1, (248 - luminance) / 24));
+        }
+        // Preserve original RGB pixels! Only the alpha channel is adjusted.
+        data[i + 3] = Math.round(data[i + 3] * matte * opacity);
+      }
+      offCtx.putImageData(imageData, 0, 0);
+      const rotated = document.createElement('canvas');
+      const rad = 28 * Math.PI / 180;
+      const rotatedW = Math.ceil(off.width * Math.cos(rad) + off.height * Math.sin(rad)) + 4;
+      const rotatedH = Math.ceil(off.width * Math.sin(rad) + off.height * Math.cos(rad)) + 4;
+      rotated.width = rotatedW;
+      rotated.height = rotatedH;
+      const rctx = rotated.getContext('2d');
+      rctx.translate(rotatedW / 2, rotatedH / 2);
+      rctx.rotate(rad);
+      rctx.drawImage(off, -off.width / 2, -off.height / 2);
+      const stepX = Math.max(60, Math.round(regionWidth * 0.16 * watermarkSpacing)) * previewScale;
+      const stepY = Math.max(60, Math.round(172 * layout.scale * watermarkSpacing)) * previewScale;
+      const leftPx = bodyLeft * previewScale;
+      const topPx = bodyTop * previewScale;
+      const rightPx = bodyRight * previewScale;
+      const bottomPx = bodyBottom * previewScale;
+
+      context.save();
+      context.beginPath();
+      // All marks are positioned inside the region, so clipping is now only a
+      // safety guard rather than part of the visual layout.
+      context.rect(leftPx, topPx, rightPx - leftPx, bottomPx - topPx);
+      context.clip();
+
+      // Size-aware safe margins make the first/last rows move naturally when
+      // watermark size changes. No visible mark is intentionally cut.
+      const sideInset = Math.max(2 * previewScale, rotated.width * 0.10);
+      const topInset = Math.max(2 * previewScale, rotated.height * 0.14);
+      const bottomInset = Math.max(2 * previewScale, rotated.height * 0.14);
+
+      const minX = leftPx + sideInset;
+      const maxX = rightPx - sideInset - rotated.width;
+      const minY = topPx + topInset;
+      const maxY = bottomPx - bottomInset - rotated.height;
+
+      const drawRow = (row, y) => {
+        // Very narrow areas get one centered, fully visible mark.
+        if (maxX < minX) {
+          const centeredX = Math.max(leftPx, (leftPx + rightPx - rotated.width) / 2);
+          context.drawImage(rotated, Math.round(centeredX), Math.round(y));
+          return;
+        }
+
+        const stagger = row % 2 === 0 ? 0 : stepX / 2;
+        let x = minX + stagger;
+
+        // If the stagger cannot fit a mark, center one instead of clipping it.
+        if (x > maxX) x = (minX + maxX) / 2;
+
+        for (; x <= maxX + 0.5; x += stepX) {
+          context.drawImage(rotated, Math.round(x), Math.round(y));
+        }
+      };
+
+      if (maxY < minY) {
+        // Short regions get one vertically centered row.
+        const centeredY = Math.max(topPx, (topPx + bottomPx - rotated.height) / 2);
+        drawRow(0, centeredY);
+      } else {
+        const verticalSpan = maxY - minY;
+        let rowPositions;
+
+        if (verticalSpan < stepY * 0.5) {
+          rowPositions = [(minY + maxY) / 2];
+        } else {
+          // Distribute rows exactly between safe top/bottom bounds using the
+          // closest whole number of intervals to the requested spacing.
+          const intervals = Math.max(1, Math.round(verticalSpan / stepY));
+          const actualStep = verticalSpan / intervals;
+          rowPositions = Array.from({ length: intervals + 1 }, (_, i) => minY + i * actualStep);
+        }
+
+        rowPositions.forEach((y, row) => drawRow(row, y));
+      }
+
+      context.restore();
+    }
+
+    function computeLayout(state, dw, dh) {
+      const side = Math.max(8, Math.min(18, Math.round(dw * 0.018)));
+      const outW = Math.max(700, dw + side * 2);
+      const scale = Math.max(0.70, Math.min(1.60, outW / 1400));
+      const longHeader =
+        state.category.length > 45 ||
+        state.subcategory.length > 55 ||
+        state.design_type.length > 55 ||
+        state.category.length + state.subcategory.length + state.design_type.length > 120 ||
+        state.seller.length > 50 ||
+        state.design_id.length > 26;
+      const headerH = Math.round((longHeader ? 192 : 148) * scale);
+      const before = Math.round(20 * scale);
+      const after = Math.round(12 * scale);
+      const longFooter = state.company_name.length > 30 || state.company_website.length > 36;
+      const footerH = Math.round((longFooter ? 195 : 132) * scale);
+      const outH = headerH + before + dh + after + footerH;
+      const imageY = headerH + before;
+      const footerY = imageY + dh + after;
+      return { outW, outH, scale, longHeader, longFooter, headerH, before, after, footerH, imageY, footerY };
+    }
+
+    function renderPreview() {
+      const state = getState();
+      if (!assets.design || !assets.logo) {
+        canvas.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        setStatus('Upload a design to start previewing. The NLC logo is loaded automatically.');
+        sizeInfo.textContent = 'Output automatically adapts to your artwork size.';
+        zoomLabel.textContent = 'Fit preview';
+        return;
+      }
+
+      const dw = assets.design.naturalWidth || assets.design.width;
+      const dh = assets.design.naturalHeight || assets.design.height;
+      const layout = computeLayout(state, dw, dh);
+      const maxPreviewWidth = 900;
+      const maxPreviewHeight = 980;
+      const cssPreviewScale = Math.min(maxPreviewWidth / layout.outW, maxPreviewHeight / layout.outH, 1);
+      // Render the backing canvas at Retina/device-pixel resolution while keeping
+      // the same CSS size. This prevents the browser from stretching a low-res
+      // 900 px canvas across a high-DPI display.
+      const pixelRatio = Math.max(1, Math.min(window.devicePixelRatio || 1, 2.5));
+      const previewScale = cssPreviewScale * pixelRatio;
+      const cssWidth = Math.max(1, Math.round(layout.outW * cssPreviewScale));
+      const cssHeight = Math.max(1, Math.round(layout.outH * cssPreviewScale));
+      canvas.width = Math.max(1, Math.round(layout.outW * previewScale));
+      canvas.height = Math.max(1, Math.round(layout.outH * previewScale));
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.height = 'auto';
+      canvas.classList.remove('hidden');
+      emptyState.classList.add('hidden');
+      zoomLabel.textContent = `${Math.round(cssPreviewScale * 100)}% preview · ${pixelRatio.toFixed(pixelRatio % 1 ? 1 : 0)}× sharp`;
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const px = value => value * previewScale;
+
+      const designX = (layout.outW - dw) / 2;
+      const designPxX = designX * previewScale;
+      const designPxY = layout.imageY * previewScale;
+      const designPxW = dw * previewScale;
+      const designPxH = dh * previewScale;
+      if (assets.designHasTransparency) {
+        drawCheckerboard(ctx, designPxX, designPxY, designPxW, designPxH, Math.max(6, Math.round(10 * previewScale)));
+      }
+      ctx.drawImage(assets.design, designPxX, designPxY, designPxW, designPxH);
+      ctx.strokeStyle = assets.designHasTransparency ? '#b8c3c8' : '#dfe5e8';
+      ctx.lineWidth = Math.max(1, 1 * previewScale);
+      ctx.strokeRect(designPxX + 0.5, designPxY + 0.5, Math.max(1, designPxW - 1), Math.max(1, designPxH - 1));
+      const watermarkBox = state.watermark_scope === 'page'
+        ? { x: 0, y: 0, width: layout.outW, height: layout.outH }
+        : { x: designX, y: layout.imageY, width: dw, height: dh };
+      drawWatermarkPattern(ctx, assets.logo, watermarkBox, layout, previewScale, state.watermark_opacity,
+        state.watermark_size, state.watermark_spacing);
+
+      const dark = '#131719';
+      const green = '#145143';
+      const rule = '#A5A6A6';
+      const sx = value => Math.round(value * layout.scale);
+      const pad = sx(33);
+      const leftEnd = Math.round(layout.outW * 0.342);
+      const catEnd = Math.round(layout.outW * 0.658);
+      const idEnd = Math.round(layout.outW * 0.814);
+      const top = sx(19);
+      const availableHeader = layout.headerH - top - sx(12);
+
+      const logoBounds = fitWithin(
+        assets.logo.naturalWidth || assets.logo.width,
+        assets.logo.naturalHeight || assets.logo.height,
+        Math.max(1, Math.round((leftEnd - 2 * pad) * state.logo_scale)),
+        Math.max(1, Math.round(availableHeader * state.logo_scale))
+      );
+      const logoX = pad;
+      const logoY = top + Math.max(0, (availableHeader - logoBounds.height) / 2);
+      ctx.drawImage(assets.logo, px(logoX), px(logoY), px(logoBounds.width), px(logoBounds.height));
+
+      ctx.strokeStyle = rule;
+      ctx.lineWidth = Math.max(1, px(Math.max(1, sx(1) / layout.scale)));
+      ctx.beginPath();
+      ctx.moveTo(px(catEnd), px(top)); ctx.lineTo(px(catEnd), px(layout.headerH - sx(15)));
+      ctx.moveTo(px(idEnd), px(top)); ctx.lineTo(px(idEnd), px(layout.headerH - sx(15)));
+      ctx.stroke();
+
+      const catX = leftEnd + sx(15);
+      const catW = catEnd - catX - sx(12);
+      // Both lines use the same centered box, so Design Type is centered
+      // directly under the Category | Subcategory line.
+      const detailsText = `${state.category} | ${state.subcategory}\n${state.design_type}`;
+      drawTextBlock(ctx, detailsText, [px(catX), px(top + sx(28)), px(catW), px(availableHeader - sx(20))], {
+        size: state.category_value_size * layout.scale * previewScale,
+        align: 'center',
+        maxLines: layout.longHeader ? 3 : 2,
+        minSize: 9 * previewScale
+      });
+
+      const idX = catEnd + sx(22);
+      const idW = idEnd - idX - sx(8);
+      drawTextBlock(ctx, 'Design ID', [px(idX), px(top + sx(4)), px(idW), px(sx(30))], { size: state.design_id_title_size * layout.scale * previewScale, minSize: 10 * previewScale });
+      drawTextBlock(ctx, state.design_id, [px(idX), px(top + sx(38)), px(idW), px(availableHeader - sx(34))], { size: state.design_id_value_size * layout.scale * previewScale, kind: 'bold', maxLines: 3, minSize: 9 * previewScale });
+
+      const sellerX = idEnd + sx(25);
+      const sellerW = layout.outW - sellerX - pad;
+      drawTextBlock(ctx, 'Seller', [px(sellerX), px(top), px(sellerW), px(sx(26))], { size: state.seller_title_size * layout.scale * previewScale, minSize: 10 * previewScale });
+      drawTextBlock(ctx, state.seller, [px(sellerX), px(top + sx(29)), px(sellerW), px(availableHeader - sx(24))], { size: state.seller_value_size * layout.scale * previewScale, kind: 'bold', maxLines: layout.longHeader ? 8 : 3, minSize: 9 * previewScale });
+
+      const warnX = pad, warnY = layout.footerY + sx(13);
+      const warnW = Math.round(layout.outW * 0.285);
+      const warnH = layout.footerH - sx(29);
+      const r = px(sx(12));
+      ctx.fillStyle = '#FCE5EA';
+      roundRect(ctx, px(warnX), px(warnY), px(warnW), px(warnH), r); ctx.fill();
+      const dotR = px(sx(22));
+      const dotX = px(warnX + sx(40));
+      const dotY = px(warnY + warnH / 2);
+      ctx.fillStyle = '#AE254A';
+      ctx.beginPath(); ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = `700 ${Math.max(10, 31 * layout.scale * previewScale)}px Arial`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('!', dotX, dotY - px(sx(2)));
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      const txtX = warnX + sx(78);
+      const txtW = warnW - sx(88);
+      drawTextBlock(ctx, 'PREVIEW ONLY', [px(txtX), px(warnY + sx(17)), px(txtW), px(sx(30))], { size: state.warning_title_size * layout.scale * previewScale, kind: 'bold', color: '#AC284D', minSize: 10 * previewScale });
+      drawTextBlock(ctx, 'DO NOT COPY OR USE FOR PRODUCTION', [px(txtX), px(warnY + sx(53)), px(txtW), px(sx(34))], { size: state.warning_subtitle_size * layout.scale * previewScale, kind: 'bold', color: '#A32446', maxLines: 2, minSize: 8 * previewScale });
+
+      const middleX = Math.round(layout.outW * 0.378);
+      const middleEnd = Math.round(layout.outW * 0.627);
+      ctx.strokeStyle = rule;
+      ctx.lineWidth = Math.max(1, px(Math.max(1, sx(1) / layout.scale)));
+      ctx.beginPath();
+      ctx.moveTo(px(middleX), px(layout.footerY + sx(11))); ctx.lineTo(px(middleX), px(layout.outH - sx(12)));
+      ctx.moveTo(px(middleEnd), px(layout.footerY + sx(11))); ctx.lineTo(px(middleEnd), px(layout.outH - sx(12)));
+      ctx.stroke();
+
+      const midX = middleX + sx(8);
+      const midW = middleEnd - middleX - sx(16);
+      drawTextBlock(ctx, 'Original Design Available Only on', [px(midX), px(layout.footerY + sx(19)), px(midW), px(sx(25))], { size: state.footer_label_size * layout.scale * previewScale, align: 'center', minSize: 8 * previewScale });
+      drawTextBlock(ctx, state.company_name, [px(midX), px(layout.footerY + sx(47)), px(midW), px(sx(layout.longFooter ? 81 : 38))], { size: state.company_name_size * layout.scale * previewScale, kind: 'bold', color: green, align: 'center', maxLines: layout.longFooter ? 6 : 2, minSize: 9 * previewScale });
+      drawTextBlock(ctx, state.company_website, [px(midX), px(layout.footerY + sx(layout.longFooter ? 136 : 89)), px(midW), px(sx(layout.longFooter ? 48 : 32))], { size: state.company_website_size * layout.scale * previewScale, color: green, align: 'center', maxLines: layout.longFooter ? 5 : 2, minSize: 9 * previewScale });
+
+      // Match the PNG: native SignPainter HouseScript lettering, rotated 9°,
+      // visually right-aligned with an underline that follows the second line.
+      const rightX = middleEnd + sx(18);
+      const rightW = Math.max(1, layout.outW - rightX - pad);
+      const rightEdge = layout.outW - pad - sx(5);
+      const signatureCenter = rightEdge - Math.min(rightW * 0.26, sx(99));
+      const signatureFont = '"SignPainter", "Brush Script MT", cursive';
+      function scriptLine(text, requestedSize, top) {
+        let pointSize = Math.max(9, Math.round(requestedSize * layout.scale));
+        const available = Math.max(1, rightW - sx(12));
+        while (pointSize > 9) {
+          ctx.font = `${pointSize}px ${signatureFont}`;
+          if (ctx.measureText(text).width + pointSize * 0.7 <= available) break;
+          pointSize--;
+        }
+        // Rasterize the script patch at the same high-DPI scale as the main
+        // preview so it is never enlarged from a low-resolution temporary canvas.
+        const patchScale = previewScale;
+        const renderPointSize = Math.max(9, pointSize * patchScale);
+        const gutter = Math.max(4, Math.round(pointSize * 0.30 * patchScale));
+        const patch = document.createElement('canvas');
+        const g = patch.getContext('2d', { willReadFrequently: true });
+        g.font = `${renderPointSize}px ${signatureFont}`;
+        const m = g.measureText(text);
+        patch.width = Math.ceil(m.width + gutter * 2 + renderPointSize * 0.16);
+        patch.height = Math.ceil(m.actualBoundingBoxAscent + m.actualBoundingBoxDescent + gutter * 2 + renderPointSize * 0.16);
+        g.font = `${renderPointSize}px ${signatureFont}`;
+        g.fillStyle = dark;
+        g.textBaseline = 'alphabetic';
+        g.fillText(text, gutter + (m.actualBoundingBoxLeft || 0), gutter + m.actualBoundingBoxAscent);
+        const extent = Math.ceil(Math.hypot(patch.width, patch.height)) + 2;
+        const tilted = document.createElement('canvas');
+        tilted.width = extent;
+        tilted.height = extent;
+        const tc = tilted.getContext('2d', { willReadFrequently: true });
+        tc.imageSmoothingEnabled = true;
+        tc.imageSmoothingQuality = 'high';
+        tc.translate(extent / 2, extent / 2);
+        tc.rotate(-9 * Math.PI / 180);
+        tc.drawImage(patch, -patch.width / 2, -patch.height / 2);
+        const alpha = tc.getImageData(0, 0, extent, extent).data;
+        let minX = extent, minY = extent, maxX = -1, maxY = -1;
+        for (let y = 0; y < extent; y++) {
+          for (let x = 0; x < extent; x++) {
+            if (alpha[(y * extent + x) * 4 + 3] > 0) {
+              minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+              minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+            }
+          }
+        }
+        const inkWpx = maxX < minX ? 1 : maxX - minX + 1;
+        const inkHpx = maxY < minY ? 1 : maxY - minY + 1;
+        const inkW = inkWpx / patchScale;
+        const inkH = inkHpx / patchScale;
+        const left = Math.max(rightX, Math.min(Math.round(signatureCenter - inkW / 2), layout.outW - pad - inkW));
+        ctx.drawImage(tilted, minX, minY, inkWpx, inkHpx, px(left), px(top), inkWpx, inkHpx);
+        return {cx: left + inkW / 2, width: inkW, height: inkH};
+      }
+      scriptLine('Support Designers', state.support_title_size, layout.footerY + sx(16));
+      const buy = scriptLine('Buy Original', state.support_subtitle_size, layout.footerY + sx(59));
+      const lineEnd = Math.min(layout.outW - pad - sx(3), Math.round(buy.cx + buy.width * 0.46));
+      const lineStart = Math.max(rightX + sx(6), Math.round(buy.cx - buy.width * 0.16));
+      const lineY = Math.min(layout.outH - sx(8), layout.footerY + sx(59) + buy.height + sx(6));
+      const rise = Math.max(4, sx(12));
+      ctx.strokeStyle = '#00A15A';
+      ctx.lineWidth = px(Math.max(2, sx(4)));
+      ctx.lineCap = 'butt';
+      ctx.beginPath();
+      ctx.moveTo(px(lineStart), px(lineY));
+      ctx.lineTo(px(lineEnd), px(lineY - rise));
+      ctx.stroke();
+
+      setStatus('Live preview updated. Generate final PNG when you are happy with the layout.');
+      sizeInfo.textContent = `Original artwork: ${dw} × ${dh} px${assets.designHasTransparency ? ' · transparent PNG detected' : ''} · Final proof: ${layout.outW} × ${layout.outH} px`;
+      resultInfo.textContent = 'Live preview ready';
+    }
+
+    function roundRect(context, x, y, width, height, radius) {
+      const r = Math.min(radius, width / 2, height / 2);
+      context.beginPath();
+      context.moveTo(x + r, y);
+      context.arcTo(x + width, y, x + width, y + height, r);
+      context.arcTo(x + width, y + height, x, y + height, r);
+      context.arcTo(x, y + height, x, y, r);
+      context.arcTo(x, y, x + width, y, r);
+      context.closePath();
+    }
+
+    function updatePreview() {
+      refreshReadouts();
+      renderPreview();
+    }
+
+    form.addEventListener('input', updatePreview);
+
+    document.getElementById('resetStyles').addEventListener('click', () => {
+      Object.entries(DEFAULTS).forEach(([key, value]) => {
+        const slider = document.getElementById(key);
+        if (slider) slider.value = value;
+        const mirror = document.querySelector(`[data-sync="${key}"]`);
+        if (mirror) mirror.value = value;
+      });
+      clearError();
+      updatePreview();
+    });
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      clearError();
+      if (!document.getElementById('design').files?.[0]) {
+        showError('Upload your design first.');
+        return;
+      }
+
+      // Await in-browser optimization before sending a very large uploaded logo.
+      if (assets.logoOptimizing) await assets.logoOptimizing;
+      const data = new FormData(form);
+      if (!document.getElementById('logo').files?.[0]) data.delete('logo');
+      if (assets.optimizedLogoBlob) data.set('logo', assets.optimizedLogoBlob, 'logo-optimized.png');
+      data.set('watermark_opacity', String(num('watermark_opacity') / 100));
+      data.set('watermark_size', String(num('watermark_size') / 100));
+      data.set('watermark_spacing', String(num('watermark_spacing') / 100));
+      data.set('logo_scale', String(num('logo_scale') / 100));
+
+      generateBtn.disabled = true;
+      generateBtn.textContent = 'Generating final PNG…';
+      resultInfo.textContent = 'Rendering on server…';
+
+      try {
+        const response = await fetch('/api/v1/render', { method: 'POST', body: data });
+        if (!response.ok) {
+          let message = `Server error ${response.status}`;
+          try {
+            const result = await response.json();
+            message = typeof result.detail === 'string' ? result.detail : JSON.stringify(result.detail);
+          } catch {}
+          throw new Error(message);
+        }
+        const blob = await response.blob();
+        if (assets.generatedUrl) URL.revokeObjectURL(assets.generatedUrl);
+        assets.generatedUrl = URL.createObjectURL(blob);
+        const slug = (data.get('design_id') || 'design').toString().replace(/[^a-z0-9_-]/gi, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'design';
+        downloadBtn.href = assets.generatedUrl;
+        downloadBtn.download = `proof-${slug}.png`;
+        downloadBtn.removeAttribute('aria-disabled');
+        resultInfo.textContent = 'Final PNG ready for download';
+        setStatus('Final PNG generated successfully.');
+        const sw = response.headers.get('X-Source-Design-Width');
+        const sh = response.headers.get('X-Source-Design-Height');
+        const ow = response.headers.get('X-Output-Width');
+        const oh = response.headers.get('X-Output-Height');
+        if (sw && sh && ow && oh) sizeInfo.textContent = `Original artwork: ${sw} × ${sh} px · Final proof: ${ow} × ${oh} px`;
+      } catch (err) {
+        showError(err.message || 'Could not generate final PNG.');
+        resultInfo.textContent = 'Generation failed';
+      } finally {
+        generateBtn.disabled = false;
+        generateBtn.textContent = 'Generate final PNG →';
+      }
+    });
+
+    // Repaint after system fonts become available; otherwise the first draw
+    // could use a fallback font while the final PNG uses SignPainter.
+    document.fonts.ready.then(() => updatePreview());
+    setupDrop('logo');
+    setupDrop('design');
+    loadDefaultLogo();
+    syncPairs();
+    refreshReadouts();
+    updatePreview();
+  </script>
+</body>
+</html>

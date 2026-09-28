@@ -5,6 +5,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Design Proof Studio</title>
   <style>
+    @font-face {
+      font-family: "Proof Sans";
+      src: url('/fonts/Proof-Regular.ttf') format('truetype'), local('Arial');
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Proof Sans";
+      src: url('/fonts/Proof-Bold.ttf') format('truetype'), local('Arial Bold');
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Proof Serif";
+      src: url('/fonts/Proof-Italic.ttf') format('truetype'), local('Georgia Italic');
+      font-style: italic;
+      font-weight: 400;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Proof Script";
+      src: url('/fonts/Proof-Script.ttf') format('truetype'),
+           url('/fonts/Proof-Script.otf') format('opentype'),
+           url('/fonts/Proof-Script.ttc') format('collection'),
+           local('SignPainter'), local('Brush Script MT');
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+    }
     :root {
       --bg: #f4f7f6;
       --panel: #ffffff;
@@ -243,7 +274,8 @@
               <details open>
                 <summary>Header font sizes <span>Category / ID / Seller</span></summary>
                 <div class="details-body">
-                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Design details value</span><span data-readout-for="category_value_size">16.5 px</span></div><input id="category_value_size" name="category_value_size" type="range" min="8" max="38" value="16.5" step="0.5" data-format="px" /></div><input type="number" min="8" max="38" step="0.5" value="16.5" data-sync="category_value_size" /></div>
+                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Design details title</span><span data-readout-for="category_title_size">31 px</span></div><input id="category_title_size" name="category_title_size" type="range" min="10" max="42" value="31" step="0.5" data-format="px" /></div><input type="number" min="10" max="42" step="0.5" value="31" data-sync="category_title_size" /></div>
+                  <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Design details value</span><span data-readout-for="category_value_size">25.5 px</span></div><input id="category_value_size" name="category_value_size" type="range" min="8" max="38" value="25.5" step="0.5" data-format="px" /></div><input type="number" min="8" max="38" step="0.5" value="25.5" data-sync="category_value_size" /></div>
                   <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Design ID title</span><span data-readout-for="design_id_title_size">19 px</span></div><input id="design_id_title_size" name="design_id_title_size" type="range" min="10" max="42" value="19" step="0.5" data-format="px" /></div><input type="number" min="10" max="42" step="0.5" value="19" data-sync="design_id_title_size" /></div>
                   <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Design ID value</span><span data-readout-for="design_id_value_size">23 px</span></div><input id="design_id_value_size" name="design_id_value_size" type="range" min="8" max="42" value="23" step="0.5" data-format="px" /></div><input type="number" min="8" max="42" step="0.5" value="23" data-sync="design_id_value_size" /></div>
                   <div class="slider-row"><div class="slider-wrap"><div class="slider-label"><span>Seller title</span><span data-readout-for="seller_title_size">17 px</span></div><input id="seller_title_size" name="seller_title_size" type="range" min="8" max="38" value="17" step="0.5" data-format="px" /></div><input type="number" min="8" max="38" step="0.5" value="17" data-sync="seller_title_size" /></div>
@@ -312,7 +344,8 @@
       watermark_size: 125,
       watermark_spacing: 135,
       logo_scale: 103,
-      category_value_size: 16.5,
+      category_title_size: 31,
+      category_value_size: 25.5,
       design_id_title_size: 19,
       design_id_value_size: 23,
       seller_title_size: 17,
@@ -546,6 +579,7 @@
         watermark_spacing: num('watermark_spacing') / 100,
         watermark_scope: valueOf('watermark_scope', 'artwork'),
         logo_scale: num('logo_scale') / 100,
+        category_title_size: num('category_title_size'),
         category_value_size: num('category_value_size'),
         design_id_title_size: num('design_id_title_size'),
         design_id_value_size: num('design_id_value_size'),
@@ -611,7 +645,7 @@
       let fontSize = Math.max(minSize, size);
       let lines = [String(text || '')];
       let lineHeight = fontSize * 1.22;
-      let fontFamily = kind === 'italic' ? 'Georgia, serif' : 'Arial, Helvetica, sans-serif';
+      let fontFamily = kind === 'italic' ? '"Proof Serif", Georgia, serif' : '"Proof Sans", Arial, Helvetica, sans-serif';
       let weight = kind === 'bold' ? '700' : '400';
       let style = kind === 'italic' ? 'italic' : 'normal';
 
@@ -758,10 +792,15 @@
       context.restore();
     }
 
-    function computeLayout(state, dw, dh) {
-      const side = Math.max(8, Math.min(18, Math.round(dw * 0.018)));
-      const outW = Math.max(700, dw + side * 2);
+    function computeLayout(state, originalWidth, originalHeight) {
+      const renderW = 1200;
+      const renderH = Math.max(1, Math.round(originalHeight * renderW / originalWidth));
+      const side = 18;
+      const outW = renderW + side * 2;
       const scale = Math.max(0.70, Math.min(1.60, outW / 1400));
+      // Match the Python renderer: typography is tied to normalized proof width,
+      // not the uploaded source resolution. Long strings may still auto-fit.
+      const typeScale = Math.max(0.82, Math.min(1.35, Math.pow(outW / 1236, 0.85)));
       const longHeader =
         state.category.length > 45 ||
         state.subcategory.length > 55 ||
@@ -774,10 +813,10 @@
       const after = Math.round(12 * scale);
       const longFooter = state.company_name.length > 30 || state.company_website.length > 36;
       const footerH = Math.round((longFooter ? 195 : 132) * scale);
-      const outH = headerH + before + dh + after + footerH;
+      const outH = headerH + before + renderH + after + footerH;
       const imageY = headerH + before;
-      const footerY = imageY + dh + after;
-      return { outW, outH, scale, longHeader, longFooter, headerH, before, after, footerH, imageY, footerY };
+      const footerY = imageY + renderH + after;
+      return { outW, outH, renderW, renderH, scale, typeScale, longHeader, longFooter, headerH, before, after, footerH, imageY, footerY };
     }
 
     function renderPreview() {
@@ -820,11 +859,11 @@
 
       const px = value => value * previewScale;
 
-      const designX = (layout.outW - dw) / 2;
+      const designX = (layout.outW - layout.renderW) / 2;
       const designPxX = designX * previewScale;
       const designPxY = layout.imageY * previewScale;
-      const designPxW = dw * previewScale;
-      const designPxH = dh * previewScale;
+      const designPxW = layout.renderW * previewScale;
+      const designPxH = layout.renderH * previewScale;
       if (assets.designHasTransparency) {
         drawCheckerboard(ctx, designPxX, designPxY, designPxW, designPxH, Math.max(6, Math.round(10 * previewScale)));
       }
@@ -834,7 +873,7 @@
       ctx.strokeRect(designPxX + 0.5, designPxY + 0.5, Math.max(1, designPxW - 1), Math.max(1, designPxH - 1));
       const watermarkBox = state.watermark_scope === 'page'
         ? { x: 0, y: 0, width: layout.outW, height: layout.outH }
-        : { x: designX, y: layout.imageY, width: dw, height: dh };
+        : { x: designX, y: layout.imageY, width: layout.renderW, height: layout.renderH };
       drawWatermarkPattern(ctx, assets.logo, watermarkBox, layout, previewScale, state.watermark_opacity,
         state.watermark_size, state.watermark_spacing);
 
@@ -855,7 +894,7 @@
         Math.max(1, Math.round((leftEnd - 2 * pad) * state.logo_scale)),
         Math.max(1, Math.round(availableHeader * state.logo_scale))
       );
-      const logoX = pad;
+      const logoX = Math.max(pad, (leftEnd - logoBounds.width) / 2);
       const logoY = top + Math.max(0, (availableHeader - logoBounds.height) / 2);
       ctx.drawImage(assets.logo, px(logoX), px(logoY), px(logoBounds.width), px(logoBounds.height));
 
@@ -866,27 +905,56 @@
       ctx.moveTo(px(idEnd), px(top)); ctx.lineTo(px(idEnd), px(layout.headerH - sx(15)));
       ctx.stroke();
 
-      const catX = leftEnd + sx(15);
-      const catW = catEnd - catX - sx(12);
-      // Both lines use the same centered box, so Design Type is centered
-      // directly under the Category | Subcategory line.
+      const headerInner = sx(12);
+      const catX = leftEnd + headerInner;
+      const catW = catEnd - leftEnd - headerInner * 2;
+      const idX = catEnd + headerInner;
+      const idW = idEnd - catEnd - headerInner * 2;
+      const sellerX = idEnd + headerInner;
+      const sellerW = layout.outW - idEnd - headerInner * 2;
       const detailsText = `${state.category} | ${state.subcategory}\n${state.design_type}`;
-      drawTextBlock(ctx, detailsText, [px(catX), px(top + sx(28)), px(catW), px(availableHeader - sx(20))], {
-        size: state.category_value_size * layout.scale * previewScale,
-        align: 'center',
-        maxLines: layout.longHeader ? 3 : 2,
-        minSize: 9 * previewScale
+
+      // Center each complete title + value stack vertically in the header.
+      const titleH = sx(34);
+      const stackGap = sx(7);
+      const detailsValueH = sx(layout.longHeader ? 72 : 52);
+      const idValueH = sx(layout.longHeader ? 44 : 30);
+      const sellerValueH = sx(layout.longHeader ? 76 : 30);
+
+      const detailsStackH = titleH + stackGap + detailsValueH;
+      const idStackH = titleH + stackGap + idValueH;
+      const sellerStackH = titleH + stackGap + sellerValueH;
+
+      const detailsTop = top + Math.max(0, (availableHeader - detailsStackH) / 2);
+      const idTop = top + Math.max(0, (availableHeader - idStackH) / 2);
+      const sellerTop = top + Math.max(0, (availableHeader - sellerStackH) / 2);
+
+      drawTextBlock(ctx, 'Design Details', [px(catX), px(detailsTop), px(catW), px(titleH)], {
+        size: state.category_title_size * layout.typeScale * previewScale,
+        kind: 'bold', align: 'center', maxLines: 1, minSize: 10 * previewScale
+      });
+      drawTextBlock(ctx, detailsText, [px(catX), px(detailsTop + titleH + stackGap), px(catW), px(detailsValueH)], {
+        size: state.category_value_size * layout.typeScale * previewScale,
+        align: 'center', maxLines: layout.longHeader ? 3 : 2, minSize: 9 * previewScale
       });
 
-      const idX = catEnd + sx(22);
-      const idW = idEnd - idX - sx(8);
-      drawTextBlock(ctx, 'Design ID', [px(idX), px(top + sx(4)), px(idW), px(sx(30))], { size: state.design_id_title_size * layout.scale * previewScale, minSize: 10 * previewScale });
-      drawTextBlock(ctx, state.design_id, [px(idX), px(top + sx(38)), px(idW), px(availableHeader - sx(34))], { size: state.design_id_value_size * layout.scale * previewScale, kind: 'bold', maxLines: 3, minSize: 9 * previewScale });
+      drawTextBlock(ctx, 'Design ID', [px(idX), px(idTop), px(idW), px(titleH)], {
+        size: state.design_id_title_size * layout.typeScale * previewScale,
+        align: 'center', minSize: 10 * previewScale
+      });
+      drawTextBlock(ctx, state.design_id, [px(idX), px(idTop + titleH + stackGap), px(idW), px(idValueH)], {
+        size: state.design_id_value_size * layout.typeScale * previewScale,
+        kind: 'bold', align: 'center', maxLines: 3, minSize: 9 * previewScale
+      });
 
-      const sellerX = idEnd + sx(25);
-      const sellerW = layout.outW - sellerX - pad;
-      drawTextBlock(ctx, 'Seller', [px(sellerX), px(top), px(sellerW), px(sx(26))], { size: state.seller_title_size * layout.scale * previewScale, minSize: 10 * previewScale });
-      drawTextBlock(ctx, state.seller, [px(sellerX), px(top + sx(29)), px(sellerW), px(availableHeader - sx(24))], { size: state.seller_value_size * layout.scale * previewScale, kind: 'bold', maxLines: layout.longHeader ? 8 : 3, minSize: 9 * previewScale });
+      drawTextBlock(ctx, 'Seller', [px(sellerX), px(sellerTop), px(sellerW), px(titleH)], {
+        size: state.seller_title_size * layout.typeScale * previewScale,
+        align: 'center', minSize: 10 * previewScale
+      });
+      drawTextBlock(ctx, state.seller, [px(sellerX), px(sellerTop + titleH + stackGap), px(sellerW), px(sellerValueH)], {
+        size: state.seller_value_size * layout.typeScale * previewScale,
+        kind: 'bold', align: 'center', maxLines: layout.longHeader ? 8 : 3, minSize: 9 * previewScale
+      });
 
       const warnX = pad, warnY = layout.footerY + sx(13);
       const warnW = Math.round(layout.outW * 0.285);
@@ -900,14 +968,14 @@
       ctx.fillStyle = '#AE254A';
       ctx.beginPath(); ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#fff';
-      ctx.font = `700 ${Math.max(10, 31 * layout.scale * previewScale)}px Arial`;
+      ctx.font = `700 ${Math.max(10, 31 * layout.typeScale * previewScale)}px Arial`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('!', dotX, dotY - px(sx(2)));
       ctx.textAlign = 'left'; ctx.textBaseline = 'top';
       const txtX = warnX + sx(78);
       const txtW = warnW - sx(88);
-      drawTextBlock(ctx, 'PREVIEW ONLY', [px(txtX), px(warnY + sx(17)), px(txtW), px(sx(30))], { size: state.warning_title_size * layout.scale * previewScale, kind: 'bold', color: '#AC284D', minSize: 10 * previewScale });
-      drawTextBlock(ctx, 'DO NOT COPY OR USE FOR PRODUCTION', [px(txtX), px(warnY + sx(53)), px(txtW), px(sx(34))], { size: state.warning_subtitle_size * layout.scale * previewScale, kind: 'bold', color: '#A32446', maxLines: 2, minSize: 8 * previewScale });
+      drawTextBlock(ctx, 'PREVIEW ONLY', [px(txtX), px(warnY + sx(17)), px(txtW), px(sx(30))], { size: state.warning_title_size * layout.typeScale * previewScale, kind: 'bold', color: '#AC284D', minSize: 10 * previewScale });
+      drawTextBlock(ctx, 'DO NOT COPY OR USE FOR PRODUCTION', [px(txtX), px(warnY + sx(53)), px(txtW), px(sx(34))], { size: state.warning_subtitle_size * layout.typeScale * previewScale, kind: 'bold', color: '#A32446', maxLines: 2, minSize: 8 * previewScale });
 
       const middleX = Math.round(layout.outW * 0.378);
       const middleEnd = Math.round(layout.outW * 0.627);
@@ -920,19 +988,19 @@
 
       const midX = middleX + sx(8);
       const midW = middleEnd - middleX - sx(16);
-      drawTextBlock(ctx, 'Original Design Available Only on', [px(midX), px(layout.footerY + sx(19)), px(midW), px(sx(25))], { size: state.footer_label_size * layout.scale * previewScale, align: 'center', minSize: 8 * previewScale });
-      drawTextBlock(ctx, state.company_name, [px(midX), px(layout.footerY + sx(47)), px(midW), px(sx(layout.longFooter ? 81 : 38))], { size: state.company_name_size * layout.scale * previewScale, kind: 'bold', color: green, align: 'center', maxLines: layout.longFooter ? 6 : 2, minSize: 9 * previewScale });
-      drawTextBlock(ctx, state.company_website, [px(midX), px(layout.footerY + sx(layout.longFooter ? 136 : 89)), px(midW), px(sx(layout.longFooter ? 48 : 32))], { size: state.company_website_size * layout.scale * previewScale, color: green, align: 'center', maxLines: layout.longFooter ? 5 : 2, minSize: 9 * previewScale });
+      drawTextBlock(ctx, 'Original Design Available Only on', [px(midX), px(layout.footerY + sx(19)), px(midW), px(sx(25))], { size: state.footer_label_size * layout.typeScale * previewScale, align: 'center', minSize: 8 * previewScale });
+      drawTextBlock(ctx, state.company_name, [px(midX), px(layout.footerY + sx(47)), px(midW), px(sx(layout.longFooter ? 81 : 38))], { size: state.company_name_size * layout.typeScale * previewScale, kind: 'bold', color: green, align: 'center', maxLines: layout.longFooter ? 6 : 2, minSize: 9 * previewScale });
+      drawTextBlock(ctx, state.company_website, [px(midX), px(layout.footerY + sx(layout.longFooter ? 136 : 89)), px(midW), px(sx(layout.longFooter ? 48 : 32))], { size: state.company_website_size * layout.typeScale * previewScale, color: green, align: 'center', maxLines: layout.longFooter ? 5 : 2, minSize: 9 * previewScale });
 
-      // Match the PNG: native SignPainter HouseScript lettering, rotated 9°,
+      // Render the signature with the best available script/italic font, rotated 9°,
       // visually right-aligned with an underline that follows the second line.
       const rightX = middleEnd + sx(18);
       const rightW = Math.max(1, layout.outW - rightX - pad);
       const rightEdge = layout.outW - pad - sx(5);
       const signatureCenter = rightEdge - Math.min(rightW * 0.26, sx(99));
-      const signatureFont = '"SignPainter", "Brush Script MT", cursive';
+      const signatureFont = '"Proof Script", "SignPainter", "Brush Script MT", Georgia, "Times New Roman", cursive';
       function scriptLine(text, requestedSize, top) {
-        let pointSize = Math.max(9, Math.round(requestedSize * layout.scale));
+        let pointSize = Math.max(9, Math.round(requestedSize * layout.typeScale));
         const available = Math.max(1, rightW - sx(12));
         while (pointSize > 9) {
           ctx.font = `${pointSize}px ${signatureFont}`;
@@ -997,7 +1065,7 @@
       ctx.stroke();
 
       setStatus('Live preview updated. Generate final PNG when you are happy with the layout.');
-      sizeInfo.textContent = `Original artwork: ${dw} × ${dh} px${assets.designHasTransparency ? ' · transparent PNG detected' : ''} · Final proof: ${layout.outW} × ${layout.outH} px`;
+      sizeInfo.textContent = `Original artwork: ${dw} × ${dh} px${assets.designHasTransparency ? ' · transparent PNG detected' : ''} · Rendered artwork: ${layout.renderW} × ${layout.renderH} px · Final proof: ${layout.outW} × ${layout.outH} px`;
       resultInfo.textContent = 'Live preview ready';
     }
 
@@ -1073,9 +1141,11 @@
         setStatus('Final PNG generated successfully.');
         const sw = response.headers.get('X-Source-Design-Width');
         const sh = response.headers.get('X-Source-Design-Height');
+        const rw = response.headers.get('X-Rendered-Design-Width');
+        const rh = response.headers.get('X-Rendered-Design-Height');
         const ow = response.headers.get('X-Output-Width');
         const oh = response.headers.get('X-Output-Height');
-        if (sw && sh && ow && oh) sizeInfo.textContent = `Original artwork: ${sw} × ${sh} px · Final proof: ${ow} × ${oh} px`;
+        if (sw && sh && rw && rh && ow && oh) sizeInfo.textContent = `Original artwork: ${sw} × ${sh} px · Rendered artwork: ${rw} × ${rh} px · Final proof: ${ow} × ${oh} px`;
       } catch (err) {
         showError(err.message || 'Could not generate final PNG.');
         resultInfo.textContent = 'Generation failed';
@@ -1086,7 +1156,7 @@
     });
 
     // Repaint after system fonts become available; otherwise the first draw
-    // could use a fallback font while the final PNG uses SignPainter.
+    // could use a fallback font before the preferred local fonts are ready.
     document.fonts.ready.then(() => updatePreview());
     setupDrop('logo');
     setupDrop('design');

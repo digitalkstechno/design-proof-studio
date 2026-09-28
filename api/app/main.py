@@ -10,19 +10,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
-from app.renderer import MAX_UPLOAD_BYTES, ProofFields, ProofStyle, RenderError, open_image, png_bytes, render_proof
+from app.renderer import MAX_UPLOAD_BYTES, ProofFields, ProofStyle, RenderError, font_status, normalized_artwork_size, open_image, png_bytes, render_proof
 
 app = FastAPI(
     title="Design Proof Studio API",
     version="2.4.0",
-    description="Render an original-size uploaded design in a branded proof sheet with live-preview style controls.",
+    description="Render uploaded artwork at a normalized 1200 px proof-display width with live-preview style controls.",
 )
 origins = [x.strip() for x in os.getenv("PROOF_ALLOWED_ORIGINS", "").split(",") if x.strip()]
 if origins:
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["POST", "GET"], allow_headers=["*"], max_age=600)
 app_dir = Path(__file__).resolve().parent
 default_logo_path = app_dir / "assets" / "nlc-logo-default.png"
-web_dir = Path(__file__).resolve().parents[2] / "web"
+project_root = Path(__file__).resolve().parents[2]
+web_dir = project_root / "web"
+fonts_dir = project_root / "fonts"
+if fonts_dir.is_dir():
+    app.mount("/fonts", StaticFiles(directory=fonts_dir), name="fonts")
 if web_dir.is_dir():
     app.mount("/web", StaticFiles(directory=web_dir, html=True), name="web")
 
@@ -61,25 +65,27 @@ def defaults() -> dict:
         "watermark_spacing": 1.35,
         "watermark_scope": "artwork",
         "style": style.__dict__,
+        "fonts": font_status(),
     }
 
 
 @app.post("/api/v1/render", responses={200: {"content": {"image/png": {}}}, 422: {"description": "Invalid image or input"}})
 async def render(
-    design: UploadFile = File(description="Original design PNG, JPEG or WebP (unchanged pixel width/height)"),
+    design: UploadFile = File(description="Original design PNG, JPEG or WebP; source dimensions are preserved in metadata while proof display width is normalized automatically."),
     logo: UploadFile | None = File(default=None, description="Optional company logo. If omitted, the bundled NLC Logo.png is used."),
     category: str = Form(min_length=1, max_length=80),
     subcategory: str = Form(min_length=1, max_length=100),
     design_type: str = Form(min_length=1, max_length=100),
     design_id: str = Form(min_length=1, max_length=50),
     seller: str = Form(min_length=1, max_length=100),
-    company_name: str = Form(default="YOUR BRAND", min_length=1, max_length=80),
-    company_website: str = Form(default="yourwebsite.com", min_length=1, max_length=120),
+    company_name: str = Form(default="NLC Design", min_length=1, max_length=80),
+    company_website: str = Form(default="www.nlcdesign.in", min_length=1, max_length=120),
     watermark_opacity: float = Form(default=0.16, ge=0, le=1.0),
     watermark_size: float = Form(default=1.25, ge=0.4, le=2.5),
     watermark_spacing: float = Form(default=1.35, ge=0.5, le=2.5),
     watermark_scope: str = Form(default="artwork", pattern="^(artwork|page)$"),
-    category_value_size: float = Form(default=16.5, ge=8, le=38),
+    category_title_size: float = Form(default=31.0, ge=10, le=42),
+    category_value_size: float = Form(default=25.5, ge=8, le=38),
     design_id_title_size: float = Form(default=19.0, ge=10, le=42),
     design_id_value_size: float = Form(default=23.0, ge=8, le=42),
     seller_title_size: float = Form(default=17.0, ge=8, le=38),
@@ -100,6 +106,7 @@ async def render(
         raise HTTPException(status_code=422, detail="Text fields contain invalid control characters.")
 
     style = ProofStyle(
+        category_title_size=category_title_size,
         category_value_size=category_value_size,
         design_id_title_size=design_id_title_size,
         design_id_value_size=design_id_value_size,
@@ -134,6 +141,7 @@ async def render(
             watermark_scope=watermark_scope,
             style=style,
         )
+        rendered_width, rendered_height = normalized_artwork_size(artwork.width, artwork.height)
         output = render_proof(artwork, branding, fields)
         image_data = png_bytes(output)
     except RenderError as exc:
@@ -152,6 +160,8 @@ async def render(
             "Cache-Control": "no-store",
             "X-Source-Design-Width": str(artwork.width),
             "X-Source-Design-Height": str(artwork.height),
+            "X-Rendered-Design-Width": str(rendered_width),
+            "X-Rendered-Design-Height": str(rendered_height),
             "X-Output-Width": str(output.width),
             "X-Output-Height": str(output.height),
         },

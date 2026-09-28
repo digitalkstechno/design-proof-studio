@@ -1,8 +1,9 @@
-"""Pixel-accurate design placement in a responsive branded proof sheet.
+"""Render uploaded artwork into a consistent branded proof sheet.
 
-The uploaded design is composited at its native pixel dimensions, without
-resampling, cropping or stretching. Page headers/footers are added *outside*
-its original bounding box. The subtle tiled watermark is an intentional overlay.
+The uploaded original is never modified. A display copy is normalized to a
+1200 px artwork width with aspect ratio preserved and high-quality LANCZOS
+resampling so proof geometry and typography remain stable across source sizes.
+The subtle tiled watermark is an intentional overlay.
 """
 from __future__ import annotations
 
@@ -19,6 +20,8 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 MAX_EDGE = 30_000
 MAX_LOGO_INPUT_PIXELS = 100_000_000
 LOGO_RENDER_EDGE = 2048
+STANDARD_ARTWORK_WIDTH = 1200
+SIDE_PADDING = 18
 
 
 class RenderError(ValueError):
@@ -27,7 +30,8 @@ class RenderError(ValueError):
 
 @dataclass(frozen=True)
 class ProofStyle:
-    category_value_size: float = 16.5
+    category_title_size: float = 31.0
+    category_value_size: float = 25.5
     design_id_title_size: float = 19.0
     design_id_value_size: float = 23.0
     seller_title_size: float = 17.0
@@ -49,14 +53,24 @@ class ProofFields:
     design_type: str
     design_id: str
     seller: str
-    company_name: str = "YOUR BRAND"
-    company_website: str = "yourwebsite.com"
+    company_name: str = "NLC Design"
+    company_website: str = "www.nlcdesign.in"
     watermark_opacity: float = 0.16
     watermark_size: float = 1.25
     watermark_spacing: float = 1.35
     watermark_scope: str = "artwork"
     style: ProofStyle = ProofStyle()
 
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_FONT_DIR = PROJECT_ROOT / "fonts"
+
+_PROJECT_FONT_FILES = {
+    "regular": ["Proof-Regular.ttf", "Arial.ttf"],
+    "bold": ["Proof-Bold.ttf", "Arial Bold.ttf"],
+    "italic": ["Proof-Italic.ttf", "Georgia Italic.ttf"],
+    "script": ["Proof-Script.ttf", "Proof-Script.otf", "Proof-Script.ttc", "SignPainter.ttc"],
+}
 
 _FONT_CANDIDATES = {
     "regular": [
@@ -76,21 +90,64 @@ _FONT_CANDIDATES = {
         "/Library/Fonts/Georgia Italic.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Italic.ttf",
     ],
-    # Preferred script-font candidates. Use PROOF_FONT_SCRIPT to override in production.
     "script": [
         "/System/Library/Fonts/Supplemental/SignPainter.ttc",
         "/Library/Fonts/SignPainter.ttc",
         "/System/Library/Fonts/Supplemental/Brush Script.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Italic.ttf",
     ],
 }
 
 
+def _font_env_key(kind: str) -> str:
+    return {"bold": "PROOF_FONT_BOLD", "italic": "PROOF_FONT_ITALIC",
+            "script": "PROOF_FONT_SCRIPT"}.get(kind, "PROOF_FONT_REGULAR")
+
+
+def _font_dir() -> Path:
+    configured = os.environ.get("PROOF_FONT_DIR", "").strip()
+    return Path(configured).expanduser() if configured else DEFAULT_FONT_DIR
+
+
+def _font_paths(kind: str) -> list[tuple[str, str]]:
+    env_path = os.environ.get(_font_env_key(kind), "").strip()
+    paths: list[tuple[str, str]] = []
+    if env_path:
+        paths.append((env_path, "env"))
+    font_dir = _font_dir()
+    paths.extend((str(font_dir / name), "project") for name in _PROJECT_FONT_FILES[kind])
+    paths.extend((path, "system") for path in _FONT_CANDIDATES[kind])
+    return paths
+
+
+def resolved_font(kind: str) -> tuple[str | None, str]:
+    for path, source in _font_paths(kind):
+        if not path or not Path(path).is_file():
+            continue
+        try:
+            ImageFont.truetype(path, size=12)
+            return path, source
+        except OSError:
+            continue
+    return None, "pillow-default"
+
+
+def font_status() -> dict[str, dict[str, str | bool | None]]:
+    result: dict[str, dict[str, str | bool | None]] = {}
+    for kind in ("regular", "bold", "italic", "script"):
+        path, source = resolved_font(kind)
+        result[kind] = {
+            "source": source,
+            "file": Path(path).name if path else None,
+            "configured": source in {"env", "project"},
+        }
+    return result
+
+
 def font(size: float, kind: str = "regular") -> ImageFont.ImageFont:
     size = max(9, int(round(size)))
-    env_key = {"bold": "PROOF_FONT_BOLD", "italic": "PROOF_FONT_ITALIC",
-               "script": "PROOF_FONT_SCRIPT"}.get(kind, "PROOF_FONT_REGULAR")
-    paths = [os.environ.get(env_key, ""), *_FONT_CANDIDATES[kind]]
-    for path in paths:
+    for path, _source in _font_paths(kind):
         if path and Path(path).is_file():
             try:
                 return ImageFont.truetype(path, size=size)
@@ -297,16 +354,26 @@ def _watermark(page: Image.Image, logo: Image.Image, box: tuple[int, int, int, i
     page.alpha_composite(layer, (x0, y0))
 
 
+def normalized_artwork_size(source_w: int, source_h: int) -> tuple[int, int]:
+    if source_w <= 0 or source_h <= 0:
+        raise RenderError("Design image dimensions are invalid.")
+    render_w = STANDARD_ARTWORK_WIDTH
+    render_h = max(1, round(source_h * render_w / source_w))
+    return render_w, render_h
+
+
 def render_proof(design: Image.Image, logo: Image.Image, fields: ProofFields) -> Image.Image:
-    dw, dh = design.size
+    source_w, source_h = design.size
+    dw, dh = normalized_artwork_size(source_w, source_h)
     style = fields.style
-    # Keep the uploaded artwork at native resolution, but make the proof sheet
-    # follow its width instead of surrounding it with a 900-pixel white frame.
-    side = max(8, min(18, round(dw * 0.018)))
-    out_w = max(700, dw + side * 2)
+    # All proof geometry uses one normalized display width. The uploaded source
+    # remains untouched; only the proof copy is resampled for consistent layout.
+    out_w = dw + SIDE_PADDING * 2
     s = max(0.70, min(1.60, out_w / 1400))
-    # Two-line design details block. Both lines share the same centered box,
-    # so Design Type is centered on the Category | Subcategory line.
+    # Typography now uses the same reference scale for every source resolution.
+    # _text_block still shrinks unusually long strings only when necessary.
+    type_scale = max(0.82, min(1.35, (out_w / 1236) ** 0.85))
+    # Design Details title plus a two-line centered value block.
     details_text = f"{fields.category} | {fields.subcategory}\n{fields.design_type}"
     long_header = (
         len(fields.category) > 45
@@ -329,7 +396,8 @@ def render_proof(design: Image.Image, logo: Image.Image, fields: ProofFields) ->
     footer_y = image_y + dh + after
     page = Image.new("RGBA", (out_w, out_h), "#FFFFFF")
     design_x = (out_w - dw) // 2
-    page.alpha_composite(design, (design_x, image_y))
+    display_design = design.resize((dw, dh), Image.Resampling.LANCZOS)
+    page.alpha_composite(display_design, (design_x, image_y))
     if fields.watermark_scope == "page":
         wm_box = (0, 0, out_w, out_h)
     else:
@@ -353,36 +421,69 @@ def render_proof(design: Image.Image, logo: Image.Image, fields: ProofFields) ->
 
     logo_bounds = (max(1, round((left_end - 2 * pad) * style.logo_scale)), max(1, round(available_header * style.logo_scale)))
     display_logo = _fit(logo, logo_bounds)
-    logo_x = pad
+    # Center the logo inside its header zone instead of pinning it to the left padding.
+    logo_x = max(pad, round((left_end - display_logo.width) / 2))
     logo_y = top + max(0, (available_header - display_logo.height) // 2)
     page.alpha_composite(display_logo, (logo_x, logo_y))
 
     d.line((cat_end, top, cat_end, header_h - sx(15)), fill=rule, width=max(1, sx(1)))
     d.line((id_end, top, id_end, header_h - sx(15)), fill=rule, width=max(1, sx(1)))
 
-    cat_x = left_end + sx(15)
-    cat_w = cat_end - cat_x - sx(12)
+    # Use symmetric inner padding and vertically center each complete
+    # title + value stack inside the same header area as the centered logo.
+    header_inner = sx(12)
+    cat_x = left_end + header_inner
+    cat_w = cat_end - left_end - header_inner * 2
+    id_x = cat_end + header_inner
+    id_w = id_end - cat_end - header_inner * 2
+    seller_x = id_end + header_inner
+    seller_w = out_w - id_end - header_inner * 2
+
+    title_h = sx(34)
+    stack_gap = sx(7)
+    details_value_h = sx(72 if long_header else 52)
+    id_value_h = sx(44 if long_header else 30)
+    seller_value_h = sx(76 if long_header else 30)
+
+    details_stack_h = title_h + stack_gap + details_value_h
+    id_stack_h = title_h + stack_gap + id_value_h
+    seller_stack_h = title_h + stack_gap + seller_value_h
+
+    details_top = top + max(0, (available_header - details_stack_h) // 2)
+    id_top = top + max(0, (available_header - id_stack_h) // 2)
+    seller_top = top + max(0, (available_header - seller_stack_h) // 2)
+
     _text_block(
-        d,
-        details_text,
-        (cat_x, top + sx(28), cat_w, available_header - sx(20)),
-        style.category_value_size * s,
-        align="center",
-        max_lines=3 if long_header else 2,
-        min_size=9,
+        d, "Design Details", (cat_x, details_top, cat_w, title_h),
+        style.category_title_size * type_scale, kind="bold", align="center", max_lines=1, min_size=10,
+    )
+    _text_block(
+        d, details_text,
+        (cat_x, details_top + title_h + stack_gap, cat_w, details_value_h),
+        style.category_value_size * type_scale, align="center",
+        max_lines=3 if long_header else 2, min_size=9,
     )
 
-    id_x = cat_end + sx(22)
-    id_w = id_end - id_x - sx(8)
-    _text_block(d, "Design ID", (id_x, top + sx(4), id_w, sx(30)), style.design_id_title_size * s, min_size=10)
-    _text_block(d, fields.design_id, (id_x, top + sx(38), id_w, available_header - sx(34)),
-                style.design_id_value_size * s, kind="bold", max_lines=3, min_size=9)
+    _text_block(
+        d, "Design ID", (id_x, id_top, id_w, title_h),
+        style.design_id_title_size * type_scale, align="center", min_size=10,
+    )
+    _text_block(
+        d, fields.design_id,
+        (id_x, id_top + title_h + stack_gap, id_w, id_value_h),
+        style.design_id_value_size * type_scale, kind="bold", align="center", max_lines=3, min_size=9,
+    )
 
-    seller_x = id_end + sx(25)
-    seller_w = out_w - seller_x - pad
-    _text_block(d, "Seller", (seller_x, top, seller_w, sx(26)), style.seller_title_size * s, min_size=10)
-    _text_block(d, fields.seller, (seller_x, top + sx(29), seller_w, available_header - sx(24)),
-                style.seller_value_size * s, kind="bold", max_lines=8 if long_header else 3, min_size=9)
+    _text_block(
+        d, "Seller", (seller_x, seller_top, seller_w, title_h),
+        style.seller_title_size * type_scale, align="center", min_size=10,
+    )
+    _text_block(
+        d, fields.seller,
+        (seller_x, seller_top + title_h + stack_gap, seller_w, seller_value_h),
+        style.seller_value_size * type_scale, kind="bold", align="center",
+        max_lines=8 if long_header else 3, min_size=9,
+    )
 
     warn_x, warn_y = pad, footer_y + sx(13)
     warn_w = round(out_w * 0.285)
@@ -391,14 +492,14 @@ def render_proof(design: Image.Image, logo: Image.Image, fields: ProofFields) ->
     dot_r = sx(22)
     dot_x, dot_y = warn_x + sx(40), warn_y + warn_h // 2
     d.ellipse((dot_x - dot_r, dot_y - dot_r, dot_x + dot_r, dot_y + dot_r), fill="#AE254A")
-    ex_f = font(31 * s, "bold")
+    ex_f = font(31 * type_scale, "bold")
     d.text((dot_x, dot_y - sx(2)), "!", font=ex_f, fill="white", anchor="mm")
     txt_x = warn_x + sx(78)
     txt_w = warn_w - sx(88)
     _text_block(d, "PREVIEW ONLY", (txt_x, warn_y + sx(17), txt_w, sx(30)),
-                style.warning_title_size * s, "bold", "#AC284D", min_size=10)
+                style.warning_title_size * type_scale, "bold", "#AC284D", min_size=10)
     _text_block(d, "DO NOT COPY OR USE FOR PRODUCTION", (txt_x, warn_y + sx(53), txt_w, sx(34)),
-                style.warning_subtitle_size * s, "bold", "#A32446", max_lines=2, min_size=8)
+                style.warning_subtitle_size * type_scale, "bold", "#A32446", max_lines=2, min_size=8)
 
     middle_x = round(out_w * 0.378)
     middle_end = round(out_w * 0.627)
@@ -406,11 +507,11 @@ def render_proof(design: Image.Image, logo: Image.Image, fields: ProofFields) ->
     d.line((middle_end, footer_y + sx(11), middle_end, out_h - sx(12)), fill=rule, width=max(1, sx(1)))
     mid_x, mid_w = middle_x + sx(8), middle_end - middle_x - sx(16)
     _text_block(d, "Original Design Available Only on", (mid_x, footer_y + sx(19), mid_w, sx(25)),
-                style.footer_label_size * s, align="center", min_size=8)
+                style.footer_label_size * type_scale, align="center", min_size=8)
     _text_block(d, fields.company_name, (mid_x, footer_y + sx(47), mid_w, sx(81 if long_footer else 38)),
-                style.company_name_size * s, "bold", green, "center", max_lines=6 if long_footer else 2, min_size=9)
+                style.company_name_size * type_scale, "bold", green, "center", max_lines=6 if long_footer else 2, min_size=9)
     _text_block(d, fields.company_website, (mid_x, footer_y + sx(136 if long_footer else 89), mid_w, sx(48 if long_footer else 32)),
-                style.company_website_size * s, color=green, align="center", max_lines=5 if long_footer else 2, min_size=9)
+                style.company_website_size * type_scale, color=green, align="center", max_lines=5 if long_footer else 2, min_size=9)
 
     # Use slanted brush-script lettering anchored close
     # to the RIGHT edge, with a separate upward green signature underline.
@@ -421,7 +522,7 @@ def render_proof(design: Image.Image, logo: Image.Image, fields: ProofFields) ->
     tilt_degrees = 9
 
     def script_line(text: str, requested_size: float, top: int) -> tuple[float, int, int]:
-        point_size = max(9, round(requested_size * s))
+        point_size = max(9, round(requested_size * type_scale))
         # Leave room for the rotated glyphs; a large slider value must not
         # push ink outside the footer or across the section divider.
         available = max(1, right_w - sx(12))

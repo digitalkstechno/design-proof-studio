@@ -162,3 +162,37 @@ Open your web browser and navigate to:
 - API Docs: `https://nlc.digitalks.co.in/docs`
 
 Your Design Proof Studio should now be live!
+
+## Step 10: Updating the Application (After Git Pull)
+When you update your code and do a `git pull`, follow these steps to apply the changes:
+
+1. **Pull the latest code:**
+   Navigate to your project directory and pull the changes.
+   ```bash
+   cd /var/www/design-proof-studio
+   git pull origin main  # or your branch name
+   ```
+
+2. **Fix permissions (if required):**
+   If you pulled the code using your own user, ensure the `www-data` user still owns the files.
+   ```bash
+   sudo chown -R www-data:www-data /var/www/design-proof-studio
+   ```
+
+3. **Update Python Dependencies (if requirements.txt changed):**
+   ```bash
+   cd /var/www/design-proof-studio/api
+   source venv/bin/activate
+   pip install -r requirements.txt
+   deactivate
+   ```
+
+4. **Restart the Application Service:**
+   Restart the systemd service so it picks up the new code.
+   ```bash
+   sudo systemctl restart designproof
+   ```
+   Check the status to ensure it's running properly:
+   ```bash
+   sudo systemctl status designproof
+   ```

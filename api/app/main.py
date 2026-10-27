@@ -4,13 +4,14 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
-from app.renderer import MAX_UPLOAD_BYTES, ProofFields, ProofStyle, RenderError, font_status, normalized_artwork_size, open_image, png_bytes, render_proof
+from app.renderer import MAX_UPLOAD_BYTES, SUPPORTED_IMAGE_LABEL, ProofFields, ProofStyle, RenderError, font_status, normalized_artwork_size, open_image, png_bytes, render_proof
 
 app = FastAPI(
     title="Design Proof Studio API",
@@ -69,10 +70,30 @@ def defaults() -> dict:
     }
 
 
+@app.post("/api/v1/preview-image", responses={200: {"content": {"image/png": {}}}, 422: {"description": "Invalid image or input"}})
+async def preview_image(
+    image: UploadFile = File(description=f"{SUPPORTED_IMAGE_LABEL} image to preview."),
+    role: Literal["design", "logo"] = Form(default="design"),
+) -> Response:
+    """Decode uploads consistently, including formats browsers cannot display."""
+    try:
+        data = await image.read(MAX_UPLOAD_BYTES + 1)
+        decoded = open_image(data, "Logo" if role == "logo" else "Design")
+        return Response(
+            content=png_bytes(decoded),
+            media_type="image/png",
+            headers={"Cache-Control": "no-store"},
+        )
+    except RenderError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        await image.close()
+
+
 @app.post("/api/v1/render", responses={200: {"content": {"image/png": {}}}, 422: {"description": "Invalid image or input"}})
 async def render(
-    design: UploadFile = File(description="Original design PNG, JPEG or WebP; source dimensions are preserved in metadata while proof display width is normalized automatically."),
-    logo: UploadFile | None = File(default=None, description="Optional company logo. If omitted, the bundled NLC Logo.png is used."),
+    design: UploadFile = File(description=f"Original {SUPPORTED_IMAGE_LABEL} design; source dimensions are preserved in metadata while proof display width is normalized automatically."),
+    logo: UploadFile | None = File(default=None, description=f"Optional {SUPPORTED_IMAGE_LABEL} company logo. If omitted, the bundled NLC Logo.png is used."),
     category: str = Form(min_length=1, max_length=80),
     subcategory: str = Form(min_length=1, max_length=100),
     design_type: str = Form(min_length=1, max_length=100),

@@ -54,7 +54,7 @@ Request type: `multipart/form-data`
 
 | Field | Type | Description |
 |---|---|---|
-| `design` | file | PNG, JPEG or WebP artwork |
+| `design` | file | PNG, JPEG, WebP, BMP, GIF, TIFF or ICO artwork |
 | `category` | string | Main category |
 | `subcategory` | string | Subcategory |
 | `design_type` | string | Design type |
@@ -65,7 +65,7 @@ Request type: `multipart/form-data`
 
 | Field | Default | Description |
 |---|---:|---|
-| `logo` | built-in NLC logo | Optional PNG/JPEG/WebP logo override |
+| `logo` | built-in NLC logo | Optional PNG/JPEG/WebP/BMP/GIF/TIFF/ICO logo override |
 | `company_name` | `YOUR BRAND` | Company or brand name |
 | `company_website` | `yourwebsite.com` | Website shown on proof |
 | `watermark_opacity` | `0.16` | Range `0.0` to `1.0` |
@@ -149,4 +149,16 @@ Multiple origins are separated by commas.
 
 ## File limits
 
-Artwork and logo uploads accept PNG, JPEG and WebP. Maximum upload size is 25 MB per file. Artwork is placed at its decoded pixel dimensions without stretching or cropping.
+Artwork and logo uploads accept PNG (`.png`), JPEG (`.jpg`, `.jpeg`, `.jfif`), WebP (`.webp`), BMP (`.bmp`, `.dib`), GIF (`.gif`), TIFF (`.tif`, `.tiff`) and ICO (`.ico`). Validation checks decoded image content, not the filename or MIME type. Maximum upload size is 25 MB per file. Existing pixel limits still apply: artwork is limited to 40 million pixels and 30,000 px per side; logos to 100 million pixels and 40,000 px per side, then downsampled to 2048 px.
+
+Animated images use the first frame; multipage TIFFs use the first page. ICO uploads use the default (largest) icon. The final proof remains a PNG. PDF, SVG, HEIC and other unsupported formats must be exported to one of the supported raster formats first.
+
+`POST /api/v1/preview-image` accepts multipart fields `image` (file) and `role` (`design` or `logo`, default `design`) and returns a decoded PNG. The web interface uses this endpoint so every supported format previews consistently, even when a browser cannot open the original format. Final rendering receives the original upload, preserving source dimensions.
+
+## Tests
+
+```bash
+pip install -r api/requirements.txt -r api/requirements-dev.txt
+python -m unittest discover -s api/tests -v
+node --test web/tests/uploads.test.cjs
+```

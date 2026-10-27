@@ -196,7 +196,7 @@
               <div class="field">
                 <label>Logo</label>
                 <label class="drop" id="logoDrop">
-                  <input id="logo" name="logo" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
+                  <input id="logo" name="logo" type="file" accept=".png,.jpg,.jpeg,.jfif,.webp,.bmp,.dib,.gif,.tif,.tiff,.ico,image/png,image/jpeg,image/webp,image/bmp,image/x-ms-bmp,image/gif,image/tiff,image/x-icon,image/vnd.microsoft.icon" class="hidden" />
                   <strong id="logoTitle">NLC Logo.png</strong>
                   <small id="logoDesc">Default logo · click to replace</small>
                 </label>
@@ -204,12 +204,14 @@
               <div class="field">
                 <label>Design artwork</label>
                 <label class="drop" id="designDrop">
-                  <input id="design" name="design" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
+                  <input id="design" name="design" type="file" accept=".png,.jpg,.jpeg,.jfif,.webp,.bmp,.dib,.gif,.tif,.tiff,.ico,image/png,image/jpeg,image/webp,image/bmp,image/x-ms-bmp,image/gif,image/tiff,image/x-icon,image/vnd.microsoft.icon" class="hidden" />
                   <strong id="designTitle">Upload design</strong>
                   <small id="designDesc">Original artwork · 25 MB max</small>
                 </label>
               </div>
             </div>
+
+            <p class="fine">PNG, JPEG, WebP, BMP, GIF, TIFF and ICO · 25 MB per file. Animated images and multipage TIFFs use the first frame or page.</p>
 
             <p class="section-title">Main content</p>
             <div class="grid2">
@@ -377,8 +379,8 @@
       logoUrl: null,
       designUrl: null,
       generatedUrl: null,
-      optimizedLogoBlob: null,
-      logoOptimizing: null,
+      logoLoading: null,
+      designLoading: null,
       logoIsDefault: false,
       designHasTransparency: false,
     };
@@ -451,11 +453,10 @@
     function loadDefaultLogo() {
       const img = new Image();
       img.onload = () => {
+        if (document.getElementById('logo').files?.[0]) return;
         assets.logo = img;
         assets.logoIsDefault = true;
         assets.logoUrl = null;
-        assets.optimizedLogoBlob = null;
-        assets.logoOptimizing = null;
         const drop = document.getElementById('logoDrop');
         const title = document.getElementById('logoTitle');
         const desc = document.getElementById('logoDesc');
@@ -484,72 +485,86 @@
           : (usingDefaultLogo ? 'Default logo · click to replace' : (key === 'logo' ? 'NLC Logo.png will be used by default' : 'Original artwork · 25 MB max'));
       }
 
+      let selectionVersion = 0;
+
       async function loadAsset() {
+        const version = ++selectionVersion;
         clearError();
+        if (assets[`${key}Url`]) URL.revokeObjectURL(assets[`${key}Url`]);
+        assets[`${key}Url`] = null;
+        assets[key] = null;
+        if (key === 'design') assets.designHasTransparency = false;
+        if (key === 'logo') assets.logoIsDefault = false;
+        updatePreview();
         const file = input.files && input.files[0];
         if (!file) {
-          if (key === 'logo') {
-            loadDefaultLogo();
-            return;
+          if (key === 'logo') loadDefaultLogo();
+          updateLabel();
+          return;
+        }
+        updateLabel();
+        desc.textContent = 'Reading image…';
+        try {
+          if (file.size > 25 * 1024 * 1024) {
+            throw new Error(`${names[key]} must be 25 MB or smaller.`);
           }
-          assets[key] = null;
-          assets.designHasTransparency = false;
-          updateLabel();
-          updatePreview();
-          return;
-        }
-        if (file.size > 25 * 1024 * 1024) {
-          showError(`${names[key]} must be 25 MB or smaller.`);
-          input.value = '';
-          assets[key] = null;
-          updateLabel();
-          updatePreview();
-          return;
-        }
-        if (assets[`${key}Url`]) URL.revokeObjectURL(assets[`${key}Url`]);
-        const objectUrl = URL.createObjectURL(file);
-        assets[`${key}Url`] = objectUrl;
-        const img = new Image();
-        img.onload = () => {
-          if (assets[`${key}Url`] !== objectUrl) return;
+          // Decode on the server so TIFF, BMP variants and animated files use
+          // exactly the same pixels as the final proof in every browser.
+          const data = new FormData();
+          data.set('image', file);
+          data.set('role', key);
+          const response = await fetch('/api/v1/preview-image', { method: 'POST', body: data });
+          if (!response.ok) {
+            let message = `Could not read ${key} image (server error ${response.status}).`;
+            try {
+              const result = await response.json();
+              if (typeof result.detail === 'string') message = result.detail;
+            } catch {}
+            throw new Error(message);
+          }
+          const blob = await response.blob();
+          if (version !== selectionVersion) return;
+          const objectUrl = URL.createObjectURL(blob);
+          assets[`${key}Url`] = objectUrl;
+          const img = new Image();
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = () => reject(new Error(`Could not display ${key} image.`));
+            img.src = objectUrl;
+          });
+          if (version !== selectionVersion) return;
           assets[key] = img;
           if (key === 'design') assets.designHasTransparency = detectTransparency(img);
-          if (key === 'logo') {
-            assets.logoIsDefault = false;
-            assets.optimizedLogoBlob = null;
-            // A high-resolution logo is still drawn at only a few hundred
-            // pixels on the sheet. Send a smaller copy, never the huge source.
-            if (Math.max(img.naturalWidth, img.naturalHeight) > 2048) {
-              assets.logoOptimizing = new Promise(resolve => {
-                const ratio = Math.min(1, 2048 / Math.max(img.naturalWidth, img.naturalHeight));
-                const temp = document.createElement('canvas');
-                temp.width = Math.max(1, Math.round(img.naturalWidth * ratio));
-                temp.height = Math.max(1, Math.round(img.naturalHeight * ratio));
-                const painter = temp.getContext('2d');
-                painter.drawImage(img, 0, 0, temp.width, temp.height);
-                temp.toBlob(blob => {
-                  if (assets.logoUrl === objectUrl && blob) assets.optimizedLogoBlob = blob;
-                  resolve();
-                }, 'image/png');
-              });
-            } else {
-              assets.logoOptimizing = null;
-            }
-          }
           updateLabel();
           updatePreview();
-        };
-        img.onerror = () => showError(`Could not read ${key} image.`);
-        img.src = objectUrl;
+        } catch (err) {
+          if (version !== selectionVersion) return;
+          if (assets[`${key}Url`]) URL.revokeObjectURL(assets[`${key}Url`]);
+          assets[`${key}Url`] = null;
+          input.value = '';
+          assets[key] = null;
+          if (key === 'logo') loadDefaultLogo();
+          updateLabel();
+          updatePreview();
+          showError(err.message || `Could not read ${key} image.`);
+        }
       }
 
-      input.addEventListener('change', loadAsset);
+      function startLoadAsset() {
+        const pending = loadAsset();
+        assets[`${key}Loading`] = pending;
+        pending.finally(() => {
+          if (assets[`${key}Loading`] === pending) assets[`${key}Loading`] = null;
+        });
+      }
+
+      input.addEventListener('change', startLoadAsset);
       ['dragenter', 'dragover'].forEach(type => drop.addEventListener(type, event => { event.preventDefault(); drop.classList.add('drag'); }));
       ['dragleave', 'drop'].forEach(type => drop.addEventListener(type, event => { event.preventDefault(); drop.classList.remove('drag'); }));
       drop.addEventListener('drop', event => {
         if (event.dataTransfer.files?.length) {
           input.files = event.dataTransfer.files;
-          loadAsset();
+          startLoadAsset();
         }
       });
       updateLabel();
@@ -1101,16 +1116,16 @@
     form.addEventListener('submit', async event => {
       event.preventDefault();
       clearError();
-      if (!document.getElementById('design').files?.[0]) {
+      while (assets.logoLoading || assets.designLoading) {
+        await Promise.all([assets.logoLoading, assets.designLoading]);
+      }
+      if (!document.getElementById('design').files?.[0] || !assets.design) {
         showError('Upload your design first.');
         return;
       }
 
-      // Await in-browser optimization before sending a very large uploaded logo.
-      if (assets.logoOptimizing) await assets.logoOptimizing;
       const data = new FormData(form);
       if (!document.getElementById('logo').files?.[0]) data.delete('logo');
-      if (assets.optimizedLogoBlob) data.set('logo', assets.optimizedLogoBlob, 'logo-optimized.png');
       data.set('watermark_opacity', String(num('watermark_opacity') / 100));
       data.set('watermark_size', String(num('watermark_size') / 100));
       data.set('watermark_spacing', String(num('watermark_spacing') / 100));

@@ -22,6 +22,8 @@ MAX_LOGO_INPUT_PIXELS = 100_000_000
 LOGO_RENDER_EDGE = 2048
 STANDARD_ARTWORK_WIDTH = 1200
 SIDE_PADDING = 18
+SUPPORTED_IMAGE_FORMATS = ("PNG", "JPEG", "WEBP", "BMP", "DIB", "GIF", "TIFF", "ICO")
+SUPPORTED_IMAGE_LABEL = "PNG, JPEG, WebP, BMP, GIF, TIFF or ICO"
 
 
 class RenderError(ValueError):
@@ -166,8 +168,10 @@ def open_image(data: bytes, label: str) -> Image.Image:
         raise RenderError(f"{label} is larger than 25 MB.")
     try:
         with Image.open(io.BytesIO(data)) as opened:
-            if opened.format not in {"PNG", "JPEG", "WEBP"}:
-                raise RenderError(f"{label} must be a PNG, JPEG or WebP image.")
+            if opened.format not in SUPPORTED_IMAGE_FORMATS:
+                raise RenderError(f"{label} must be a {SUPPORTED_IMAGE_LABEL} image.")
+            # Use the first frame/page for a stable, static proof and preview.
+            opened.seek(0)
             w, h = opened.size
             if label == "Logo":
                 # Logos are only displayed as small marks. Downsample oversized

@@ -99,6 +99,11 @@ server {
     server_name nlc.digitalks.co.in; # Change this to your actual domain
 
 
+    # Allow two 25 MB uploads plus multipart overhead.
+    client_max_body_size 55m;
+    # Optional Wilcom conversion can take up to 90 seconds.
+    proxy_read_timeout 120s;
+
     # Route requests to the FastAPI backend and web frontend
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -196,3 +201,25 @@ When you update your code and do a `git pull`, follow these steps to apply the c
    ```bash
    sudo systemctl status designproof
    ```
+
+
+## Embroidery upload support (API 2.5.0)
+
+The tested implementation is on `dev_abhi`. Install the updated `api/requirements.txt` in the service's virtual environment before restarting: it adds `pyembroidery` and `httpx`. No vendor software or network converter is needed for local stitch formats.
+
+```bash
+cd /var/www/design-proof-studio
+git fetch origin
+git switch dev_abhi
+git pull --ff-only origin dev_abhi
+api/venv/bin/python -m pip install -r api/requirements.txt
+sudo systemctl restart designproof
+curl --fail https://nlc.digitalks.co.in/health
+curl --fail https://nlc.digitalks.co.in/api/v1/formats
+```
+
+Health should report `2.5.0`. Check the `/api/v1/formats` response and the web interface's format table. Without Wilcom credentials, `.emb` should explicitly show unavailable; it must not be presented as supported.
+
+If you later obtain a Wilcom API account, add `EnvironmentFile=-/etc/designproof.env` under `[Service]` in the systemd unit and configure `PROOF_WILCOM_APP_ID` and `PROOF_WILCOM_APP_KEY` in that server-side file. See [SUPPORTED-FORMATS.md](SUPPORTED-FORMATS.md) for the protocol, optional HTTPS endpoint, usage/size limits and outstanding live verification. Keep credentials outside the repository. Reload systemd and restart the service after changing its environment.
+
+Apply the Nginx `client_max_body_size 55m` and `proxy_read_timeout 120s` settings shown above, then run `sudo nginx -t` and reload Nginx. Otherwise uploads may fail at the reverse proxy before the API sees them.

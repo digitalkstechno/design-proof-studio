@@ -14,6 +14,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
+from app.formats import RASTER_FORMATS
+
 MAX_SOURCE_PIXELS = 40_000_000
 MAX_PAGE_PIXELS = 85_000_000
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -22,8 +24,8 @@ MAX_LOGO_INPUT_PIXELS = 100_000_000
 LOGO_RENDER_EDGE = 2048
 STANDARD_ARTWORK_WIDTH = 1200
 SIDE_PADDING = 18
-SUPPORTED_IMAGE_FORMATS = ("PNG", "JPEG", "WEBP", "BMP", "DIB", "GIF", "TIFF", "ICO")
-SUPPORTED_IMAGE_LABEL = "PNG, JPEG, WebP, BMP, GIF, TIFF or ICO"
+SUPPORTED_IMAGE_FORMATS = tuple(RASTER_FORMATS)
+SUPPORTED_IMAGE_LABEL = "PNG, JPEG, WebP, BMP, GIF, TIFF, ICO, PSD, PCX, TGA, PNM or JPEG 2000"
 
 
 class RenderError(ValueError):
@@ -170,8 +172,8 @@ def open_image(data: bytes, label: str) -> Image.Image:
         with Image.open(io.BytesIO(data)) as opened:
             if opened.format not in SUPPORTED_IMAGE_FORMATS:
                 raise RenderError(f"{label} must be a {SUPPORTED_IMAGE_LABEL} image.")
-            # Use the first frame/page for a stable, static proof and preview.
-            opened.seek(0)
+            # Image.open starts at the first frame/page. Keep PSD's initial
+            # merged composite: seek(0) would select a layer instead.
             w, h = opened.size
             if label == "Logo":
                 # Logos are only displayed as small marks. Downsample oversized
@@ -190,7 +192,7 @@ def open_image(data: bytes, label: str) -> Image.Image:
             opened.load()
             image = ImageOps.exif_transpose(opened)
             return image.convert("RGBA")
-    except (OSError, SyntaxError, ValueError, Image.DecompressionBombError) as exc:
+    except (OSError, EOFError, SyntaxError, ValueError, Image.DecompressionBombError) as exc:
         if isinstance(exc, RenderError):
             raise
         raise RenderError(f"{label} is not a valid supported image.") from exc

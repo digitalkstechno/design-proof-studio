@@ -16,14 +16,20 @@ function setup(fetch) {
       value: '', files: [], textContent: '', style: {}, listeners: {},
       classList: { toggle() {}, add() {}, remove() {} },
       addEventListener(type, handler) { this.listeners[type] = handler; },
-      getContext() { return {}; }, removeAttribute() {},
+      getContext() { return {}; }, removeAttribute() {}, replaceChildren() {},
     });
     return elements.get(id);
   }
   let objectId = 0;
   const revoked = [];
   const context = vm.createContext({
-    document: { getElementById: element }, console, FormData, fetch,
+    document: {
+      getElementById: element,
+      createElement() {
+        return { textContent: '', appendChild() {}, insertCell() { return {}; },
+          insertRow() { return this; } };
+      },
+    }, console, FormData, fetch,
     URL: { createObjectURL: () => `blob:${++objectId}`, revokeObjectURL: url => revoked.push(url) },
     Image: class {
       naturalWidth = 32; naturalHeight = 32;
@@ -41,6 +47,7 @@ function setup(fetch) {
       await vm.runInContext(`assets.${key}Loading`, context);
     },
     submit: () => element('proofForm').listeners.submit({ preventDefault() {} }),
+    loadFormats: () => vm.runInContext('loadUploadFormats()', context),
   };
 }
 const pngResponse = () => new Response(new Blob(['PNG']), { headers: { 'content-type': 'image/png' } });
@@ -130,4 +137,43 @@ test('submit waits for image decoding before checking artwork', async () => {
   await submitted;
   assert.equal(completed, true);
   assert.match(ui.element('error').textContent, /Upload your design/);
+});
+
+test('format catalogue enables stitch pickers and excludes unavailable native files', async () => {
+  let uploads = 0;
+  const ui = setup(async url => {
+    if (url === '/api/v1/formats') return Response.json({ formats: [
+      { extensions: ['png'], software: 'Image', available: true, conversion: 'raster' },
+      { extensions: ['dst', 'pes'], software: 'Machine files', available: true, conversion: 'stitches' },
+      { extensions: ['emb'], software: 'Wilcom', available: false, conversion: 'wilcom', note: 'Requires a configured Wilcom account.' },
+    ] });
+    uploads++;
+    return pngResponse();
+  });
+  await ui.loadFormats();
+  for (const key of ['design', 'logo']) {
+    assert.equal(ui.element(key).accept, '.png,.dst,.pes');
+  }
+  await ui.select('design', upload('native.emb'));
+  assert.match(ui.element('error').textContent, /Requires a configured Wilcom/);
+  assert.equal(uploads, 0);
+  await ui.select('design', upload('machine.dst'));
+  assert.equal(uploads, 1);
+  assert.ok(ui.assets.design);
+});
+
+test('catalogue failure keeps the file upload flow usable', async () => {
+  const ui = setup(async url => url === '/api/v1/formats' ? new Response('', { status: 500 }) : pngResponse());
+  await ui.loadFormats();
+  assert.match(ui.element('formatsStatus').textContent, /unavailable/);
+  await ui.select('design', upload('machine.pes'));
+  assert.ok(ui.assets.design);
+});
+
+test('conversion notes are displayed after an embroidery preview loads', async () => {
+  const ui = setup(async () => new Response(new Blob(['PNG']), {
+    headers: { 'X-Conversion-Note': 'Stitch simulation; colors may use a neutral fallback.' },
+  }));
+  await ui.select('design', upload('machine.dst'));
+  assert.match(ui.element('designDesc').textContent, /Stitch simulation/);
 });

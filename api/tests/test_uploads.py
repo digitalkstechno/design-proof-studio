@@ -1,5 +1,6 @@
 """Regression coverage for image decoding, preview and final proof uploads."""
 import io
+import struct
 import sys
 import unittest
 from pathlib import Path
@@ -13,12 +14,17 @@ from app.main import app
 from app.renderer import RenderError, open_image
 
 
-FORMATS = ("PNG", "JPEG", "WEBP", "BMP", "DIB", "GIF", "TIFF", "ICO")
+FORMATS = ("PNG", "JPEG", "WEBP", "BMP", "DIB", "GIF", "TIFF", "ICO", "PSD", "PCX", "TGA", "PPM", "JPEG2000")
 FIELDS = dict(category="Test", subcategory="Upload", design_type="Artwork",
               design_id="format-test", seller="Test Seller")
 
 
 def image_bytes(fmt, size=(32, 32), color="red", **options):
+    if fmt == "PSD":
+        # Minimal uncompressed RGB PSD with a merged composite (Pillow reads PSD).
+        w, h = size
+        return (struct.pack('>4sH6sHIIHH', b'8BPS', 1, bytes(6), 3, h, w, 8, 3)
+                + bytes(12) + bytes(2) + b'\xff' * (w * h) + bytes(w * h * 2))
     output = io.BytesIO()
     if fmt == "WEBP":
         options.setdefault("lossless", True)
@@ -95,7 +101,7 @@ class UploadTests(unittest.TestCase):
         self.assertEqual(open_image(image_bytes("JPEG", size=(32, 16), exif=exif), "Design").size, (16, 32))
 
     def test_rejects_empty_corrupt_and_unsupported_content(self):
-        for data in (b"", b"not an image", b"BMbroken", image_bytes("PPM"), b"<svg/>", b"%PDF-1.7"):
+        for data in (b"", b"not an image", b"BMbroken", b"<svg/>", b"%PDF-1.7"):
             for endpoint, field in (("/api/v1/preview-image", "image"), ("/api/v1/render", "design")):
                 with self.subTest(data=data[:12], endpoint=endpoint):
                     response = self.client.post(endpoint, data=FIELDS,

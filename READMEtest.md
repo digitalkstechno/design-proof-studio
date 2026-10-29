@@ -54,7 +54,7 @@ Request type: `multipart/form-data`
 
 | Field | Type | Description |
 |---|---|---|
-| `design` | file | Image or embroidery artwork; see [format catalogue](SUPPORTED-FORMATS.md) |
+| `design` | file | PNG, JPEG, WebP, BMP, GIF, TIFF or ICO artwork |
 | `category` | string | Main category |
 | `subcategory` | string | Subcategory |
 | `design_type` | string | Design type |
@@ -65,7 +65,7 @@ Request type: `multipart/form-data`
 
 | Field | Default | Description |
 |---|---:|---|
-| `logo` | built-in NLC logo | Optional image or embroidery logo override |
+| `logo` | built-in NLC logo | Optional PNG/JPEG/WebP/BMP/GIF/TIFF/ICO logo override |
 | `company_name` | `YOUR BRAND` | Company or brand name |
 | `company_website` | `yourwebsite.com` | Website shown on proof |
 | `watermark_opacity` | `0.16` | Range `0.0` to `1.0` |
@@ -147,19 +147,13 @@ export PROOF_ALLOWED_ORIGINS="https://example.com,https://www.example.com"
 
 Multiple origins are separated by commas.
 
-## Supported software and formats
-
-See [SUPPORTED-FORMATS.md](SUPPORTED-FORMATS.md) for the researched extension/software matrix, conversion behavior and verification limits. `GET /api/v1/formats` reports the formats available on the running server. Both preview and final render now accept binary stitch files such as DST, PES, PEC, JEF, EXP, VP3, HUS and XXX, with 52 local extensions/aliases in total.
-
-Native EMB and related Wilcom project formats require an active Wilcom API account. Without server credentials they return an actionable HTTP 503 instead of a generic image error. ART, JAN, PXF, OFM and other unavailable native projects require an export to a supported image or stitch format; they are not advertised as supported.
-
 ## File limits
 
-Artwork and logo raster uploads accept PNG (`.png`), JPEG (`.jpg`, `.jpeg`, `.jfif`), WebP (`.webp`), BMP (`.bmp`, `.dib`), GIF (`.gif`), TIFF (`.tif`, `.tiff`) and ICO (`.ico`), plus PSD, PCX, TGA, Netpbm and JPEG 2000. Validation checks decoded image content, not the filename or MIME type. Maximum upload size is 25 MB per file. Existing pixel limits still apply: artwork is limited to 40 million pixels and 30,000 px per side; logos to 100 million pixels and 40,000 px per side, then downsampled to 2048 px.
+Artwork and logo uploads accept PNG (`.png`), JPEG (`.jpg`, `.jpeg`, `.jfif`), WebP (`.webp`), BMP (`.bmp`, `.dib`), GIF (`.gif`), TIFF (`.tif`, `.tiff`) and ICO (`.ico`). Validation checks decoded image content, not the filename or MIME type. Maximum upload size is 25 MB per file. Existing pixel limits still apply: artwork is limited to 40 million pixels and 30,000 px per side; logos to 100 million pixels and 40,000 px per side, then downsampled to 2048 px.
 
-Animated images use the first frame; multipage TIFFs use the first page. ICO uploads use the default (largest) icon. The final proof remains a PNG. PDF, SVG, HEIC and other unsupported formats must be exported to one of the supported raster formats first. Stitch files are converted to a bounded PNG simulation; machine formats without stored thread colors use a neutral dark fallback.
+Animated images use the first frame; multipage TIFFs use the first page. ICO uploads use the default (largest) icon. The final proof remains a PNG. PDF, SVG, HEIC and other unsupported formats must be exported to one of the supported raster formats first.
 
-`POST /api/v1/preview-image` accepts multipart fields `image` (file) and `role` (`design` or `logo`, default `design`) and returns a decoded PNG. For embroidery uploads, retain the original filename/extension so the correct binary reader can be selected. `X-Input-Format` and `X-Conversion-Note` describe the conversion. For stitch uploads the source-size headers on final renders refer to the simulation bitmap, not the physical embroidery dimensions. The web interface uses this endpoint so every supported format previews consistently, even when a browser cannot open the original format. Final rendering receives the original upload, preserving source dimensions.
+`POST /api/v1/preview-image` accepts multipart fields `image` (file) and `role` (`design` or `logo`, default `design`) and returns a decoded PNG. The web interface uses this endpoint so every supported format previews consistently, even when a browser cannot open the original format. Final rendering receives the original upload, preserving source dimensions.
 
 ## Tests
 

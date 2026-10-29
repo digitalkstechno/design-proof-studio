@@ -127,9 +127,6 @@
     .primary { background: var(--accent); color: #fff; }
     .secondary { background: #eef4f2; color: var(--text); border: 1px solid #d6e1df; }
     button:disabled { opacity: .65; cursor: wait; }
-    .format-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
-    #formatsList { max-height: 420px; overflow: auto; }
-    .format-table th, .format-table td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
     .fine { margin: 0; color: var(--muted); font-size: .88rem; line-height: 1.45; }
     .error {
       display: none; padding: 12px 14px; border-radius: 12px; background: #fff1f1; border: 1px solid #f1c0c0; color: #8e2020;
@@ -199,7 +196,7 @@
               <div class="field">
                 <label>Logo</label>
                 <label class="drop" id="logoDrop">
-                  <input id="logo" name="logo" type="file" accept=".png,.jpg,.jpeg,.jfif,.webp,.bmp,.dib,.gif,.tif,.tiff,.ico,image/png,image/jpeg,image/webp,image/bmp,image/x-ms-bmp,image/gif,image/tiff,image/x-icon,image/vnd.microsoft.icon,.apng,.psd,.pcx,.tga,.pbm,.pgm,.ppm,.pnm,.jp2,.j2k,.jpf,.jpx" class="hidden" />
+                  <input id="logo" name="logo" type="file" accept=".png,.jpg,.jpeg,.jfif,.webp,.bmp,.dib,.gif,.tif,.tiff,.ico,image/png,image/jpeg,image/webp,image/bmp,image/x-ms-bmp,image/gif,image/tiff,image/x-icon,image/vnd.microsoft.icon" class="hidden" />
                   <strong id="logoTitle">NLC Logo.png</strong>
                   <small id="logoDesc">Default logo · click to replace</small>
                 </label>
@@ -207,21 +204,14 @@
               <div class="field">
                 <label>Design artwork</label>
                 <label class="drop" id="designDrop">
-                  <input id="design" name="design" type="file" accept=".png,.jpg,.jpeg,.jfif,.webp,.bmp,.dib,.gif,.tif,.tiff,.ico,image/png,image/jpeg,image/webp,image/bmp,image/x-ms-bmp,image/gif,image/tiff,image/x-icon,image/vnd.microsoft.icon,.apng,.psd,.pcx,.tga,.pbm,.pgm,.ppm,.pnm,.jp2,.j2k,.jpf,.jpx" class="hidden" />
+                  <input id="design" name="design" type="file" accept=".png,.jpg,.jpeg,.jfif,.webp,.bmp,.dib,.gif,.tif,.tiff,.ico,image/png,image/jpeg,image/webp,image/bmp,image/x-ms-bmp,image/gif,image/tiff,image/x-icon,image/vnd.microsoft.icon" class="hidden" />
                   <strong id="designTitle">Upload design</strong>
                   <small id="designDesc">Original artwork · 25 MB max</small>
                 </label>
               </div>
             </div>
 
-            <p class="fine">Images and embroidery stitch files · 25 MB per file. Animated images and multipage TIFFs use the first frame or page. Stitch files produce a static simulation; formats without thread colors use a neutral dark thread.</p>
-            <details class="details">
-              <summary>File formats and source software</summary>
-              <div class="details-body">
-                <p class="fine" id="formatsStatus">Loading server format availability…</p>
-                <div id="formatsList"></div>
-              </div>
-            </details>
+            <p class="fine">PNG, JPEG, WebP, BMP, GIF, TIFF and ICO · 25 MB per file. Animated images and multipage TIFFs use the first frame or page.</p>
 
             <p class="section-title">Main content</p>
             <div class="grid2">
@@ -396,50 +386,6 @@
     };
 
     const names = { logo: 'Logo', design: 'Design' };
-    let uploadFormats = null;
-    let formatsLoading = null;
-
-    async function loadUploadFormats() {
-      const status = document.getElementById('formatsStatus');
-      try {
-        const response = await fetch('/api/v1/formats');
-        if (!response.ok) throw new Error('Could not load server format availability.');
-        const catalogue = await response.json();
-        uploadFormats = catalogue.formats;
-        const extensions = [...new Set(uploadFormats.filter(item => item.available).flatMap(item => item.extensions))];
-        for (const key of ['logo', 'design']) {
-          document.getElementById(key).accept = extensions.map(ext => `.${ext}`).join(',');
-        }
-        const table = document.createElement('table');
-        table.className = 'format-table';
-        const headings = table.insertRow();
-        for (const label of ['Extensions', 'Software / format family', 'Availability']) {
-          const heading = document.createElement('th');
-          heading.textContent = label;
-          headings.appendChild(heading);
-        }
-        // Group numbered machine variants together for a readable list.
-        const groups = new Map();
-        for (const item of uploadFormats) {
-          const key = `${item.software}:${item.conversion}:${item.available}`;
-          if (!groups.has(key)) groups.set(key, { ...item, extensions: [] });
-          groups.get(key).extensions.push(...item.extensions);
-        }
-        for (const item of groups.values()) {
-          const row = table.insertRow();
-          const ext = item.extensions.length > 50
-            ? `${item.extensions.slice(0, 4).map(value => `.${value}`).join(', ')} … (${item.extensions.length} variants)`
-            : item.extensions.map(value => `.${value}`).join(', ');
-          for (const value of [ext, item.software, item.available ? (item.conversion === 'stitches' ? 'Stitch preview' : item.conversion === 'wilcom' ? 'Wilcom converter' : 'Image') : item.conversion === 'wilcom' ? 'Wilcom account required' : 'Export from source software']) {
-            row.insertCell().textContent = value;
-          }
-        }
-        document.getElementById('formatsList').replaceChildren(table);
-        status.textContent = 'The file picker lists formats this server can currently decode. Native project formats may need an export or a configured converter.';
-      } catch (err) {
-        status.textContent = 'Server format list unavailable. The API will validate selected files and explain any conversion requirements.';
-      }
-    }
 
     function setStatus(message) { statusText.textContent = message; }
     function showError(message) { error.textContent = message; error.style.display = 'block'; }
@@ -535,7 +481,7 @@
         drop.classList.toggle('has-file', !!file || usingDefaultLogo);
         title.textContent = file ? file.name : (usingDefaultLogo ? 'NLC Logo.png' : `Upload ${key === 'logo' ? 'logo' : 'design'}`);
         desc.textContent = file
-          ? `${(file.size / (1024 * 1024)).toFixed(2)} MB · ${assets[`${key}Note`] || `${names[key]} selected`}`
+          ? `${(file.size / (1024 * 1024)).toFixed(2)} MB · ${names[key]} selected`
           : (usingDefaultLogo ? 'Default logo · click to replace' : (key === 'logo' ? 'NLC Logo.png will be used by default' : 'Original artwork · 25 MB max'));
       }
 
@@ -547,7 +493,6 @@
         if (assets[`${key}Url`]) URL.revokeObjectURL(assets[`${key}Url`]);
         assets[`${key}Url`] = null;
         assets[key] = null;
-        assets[`${key}Note`] = '';
         if (key === 'design') assets.designHasTransparency = false;
         if (key === 'logo') assets.logoIsDefault = false;
         updatePreview();
@@ -562,14 +507,6 @@
         try {
           if (file.size > 25 * 1024 * 1024) {
             throw new Error(`${names[key]} must be 25 MB or smaller.`);
-          }
-          if (formatsLoading) await formatsLoading;
-          if (version !== selectionVersion) return;
-          const extension = file.name.split('.').pop().toLowerCase();
-          const matching = uploadFormats?.filter(item => item.extensions.includes(extension));
-          if (matching?.length && !matching.some(item => item.available)) {
-            const format = matching[0];
-            throw new Error(`.${extension.toUpperCase()}: ${format.note}`);
           }
           // Decode on the server so TIFF, BMP variants and animated files use
           // exactly the same pixels as the final proof in every browser.
@@ -587,7 +524,6 @@
           }
           const blob = await response.blob();
           if (version !== selectionVersion) return;
-          assets[`${key}Note`] = response.headers.get('X-Conversion-Note') || '';
           const objectUrl = URL.createObjectURL(blob);
           assets[`${key}Url`] = objectUrl;
           const img = new Image();
@@ -1237,7 +1173,6 @@
     // Repaint after system fonts become available; otherwise the first draw
     // could use a fallback font before the preferred local fonts are ready.
     document.fonts.ready.then(() => updatePreview());
-    formatsLoading = loadUploadFormats().finally(() => { formatsLoading = null; });
     setupDrop('logo');
     setupDrop('design');
     loadDefaultLogo();

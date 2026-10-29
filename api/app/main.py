@@ -10,17 +10,12 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
-from starlette.concurrency import run_in_threadpool
 
-from app.formats import format_catalogue
-from app.uploads import UPLOAD_DESCRIPTION, open_upload
-from app.renderer import MAX_UPLOAD_BYTES, ProofFields, ProofStyle, RenderError, font_status, normalized_artwork_size, png_bytes, render_proof
-
-API_VERSION = "2.5.0"
+from app.renderer import MAX_UPLOAD_BYTES, SUPPORTED_IMAGE_LABEL, ProofFields, ProofStyle, RenderError, font_status, normalized_artwork_size, open_image, png_bytes, render_proof
 
 app = FastAPI(
     title="Design Proof Studio API",
-    version=API_VERSION,
+    version="2.4.0",
     description="Render uploaded artwork at a normalized 1200 px proof-display width with live-preview style controls.",
 )
 origins = [x.strip() for x in os.getenv("PROOF_ALLOWED_ORIGINS", "").split(",") if x.strip()]
@@ -41,7 +36,7 @@ if web_dir.is_dir():
 def home() -> dict[str, str]:
     return {
         "service": "Design Proof API",
-        "version": API_VERSION,
+        "version": "2.4.0",
         "render_endpoint": "/api/v1/render",
         "documentation": "/docs",
         "web_test": "/web/",
@@ -50,13 +45,7 @@ def home() -> dict[str, str]:
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "version": API_VERSION}
-
-
-@app.get("/api/v1/formats")
-def formats() -> dict:
-    """Report supported formats separately from formats needing a converter/export."""
-    return format_catalogue()
+    return {"status": "ok", "version": "2.4.0"}
 
 
 @app.get("/api/v1/default-logo", responses={200: {"content": {"image/png": {}}}})
@@ -81,32 +70,30 @@ def defaults() -> dict:
     }
 
 
-@app.post("/api/v1/preview-image", responses={200: {"content": {"image/png": {}}}, 422: {"description": "Invalid image or input"}, 502: {"description": "Conversion service failed"}, 503: {"description": "Converter unavailable"}})
+@app.post("/api/v1/preview-image", responses={200: {"content": {"image/png": {}}}, 422: {"description": "Invalid image or input"}})
 async def preview_image(
-    image: UploadFile = File(description=UPLOAD_DESCRIPTION),
+    image: UploadFile = File(description=f"{SUPPORTED_IMAGE_LABEL} image to preview."),
     role: Literal["design", "logo"] = Form(default="design"),
 ) -> Response:
     """Decode uploads consistently, including formats browsers cannot display."""
     try:
         data = await image.read(MAX_UPLOAD_BYTES + 1)
-        decoded = await run_in_threadpool(open_upload, data, "Logo" if role == "logo" else "Design", image.filename)
+        decoded = open_image(data, "Logo" if role == "logo" else "Design")
         return Response(
-            content=await run_in_threadpool(png_bytes, decoded),
+            content=png_bytes(decoded),
             media_type="image/png",
-            headers={"Cache-Control": "no-store",
-                     "X-Input-Format": decoded.info.get("proof_input_format", "raster"),
-                     "X-Conversion-Note": decoded.info.get("proof_conversion_note", "")},
+            headers={"Cache-Control": "no-store"},
         )
     except RenderError as exc:
-        raise HTTPException(status_code=getattr(exc, "status_code", 422), detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     finally:
         await image.close()
 
 
-@app.post("/api/v1/render", responses={200: {"content": {"image/png": {}}}, 422: {"description": "Invalid image or input"}, 502: {"description": "Conversion service failed"}, 503: {"description": "Converter unavailable"}})
+@app.post("/api/v1/render", responses={200: {"content": {"image/png": {}}}, 422: {"description": "Invalid image or input"}})
 async def render(
-    design: UploadFile = File(description=UPLOAD_DESCRIPTION),
-    logo: UploadFile | None = File(default=None, description=f"Optional company logo. {UPLOAD_DESCRIPTION} If omitted, the bundled NLC logo is used."),
+    design: UploadFile = File(description=f"Original {SUPPORTED_IMAGE_LABEL} design; source dimensions are preserved in metadata while proof display width is normalized automatically."),
+    logo: UploadFile | None = File(default=None, description=f"Optional {SUPPORTED_IMAGE_LABEL} company logo. If omitted, the bundled NLC Logo.png is used."),
     category: str = Form(min_length=1, max_length=80),
     subcategory: str = Form(min_length=1, max_length=100),
     design_type: str = Form(min_length=1, max_length=100),
@@ -159,8 +146,8 @@ async def render(
     try:
         design_bytes = await design.read(MAX_UPLOAD_BYTES + 1)
         logo_bytes = await logo.read(MAX_UPLOAD_BYTES + 1) if logo is not None else default_logo_path.read_bytes()
-        artwork = await run_in_threadpool(open_upload, design_bytes, "Design", design.filename)
-        branding = await run_in_threadpool(open_upload, logo_bytes, "Logo", logo.filename if logo is not None else None)
+        artwork = open_image(design_bytes, "Design")
+        branding = open_image(logo_bytes, "Logo")
         fields = ProofFields(
             category=category.strip(),
             subcategory=subcategory.strip(),
@@ -176,10 +163,10 @@ async def render(
             style=style,
         )
         rendered_width, rendered_height = normalized_artwork_size(artwork.width, artwork.height)
-        output = await run_in_threadpool(render_proof, artwork, branding, fields)
-        image_data = await run_in_threadpool(png_bytes, output)
+        output = render_proof(artwork, branding, fields)
+        image_data = png_bytes(output)
     except RenderError as exc:
-        raise HTTPException(status_code=getattr(exc, "status_code", 422), detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     finally:
         await design.close()
         if logo is not None:
@@ -198,7 +185,5 @@ async def render(
             "X-Rendered-Design-Height": str(rendered_height),
             "X-Output-Width": str(output.width),
             "X-Output-Height": str(output.height),
-            "X-Design-Input-Format": artwork.info.get("proof_input_format", "raster"),
-            "X-Design-Conversion-Note": artwork.info.get("proof_conversion_note", ""),
         },
     )

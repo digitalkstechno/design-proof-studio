@@ -131,6 +131,15 @@ Content-Type: image/png
 
 The response body is the final PNG file. The filename is also returned in the `Content-Disposition` header.
 
+Watermark status is also reported explicitly:
+
+- `X-Watermark-Applied: true` when a non-zero watermark was successfully placed.
+- `X-Watermark-Applied: false` when `watermark_opacity=0` intentionally disables it.
+- `X-Watermark-Scope` reports `artwork` or `page`.
+- `X-Watermark-Opacity` reports the effective requested opacity.
+
+A fully transparent custom logo is rejected with HTTP `422` instead of silently returning a proof without a visible watermark.
+
 Invalid input returns HTTP `422` with a JSON error message.
 
 ## Other endpoints
@@ -149,9 +158,13 @@ Multiple origins are separated by commas.
 
 ## File limits
 
-Artwork and logo uploads accept PNG (`.png`), JPEG (`.jpg`, `.jpeg`, `.jfif`), WebP (`.webp`), BMP (`.bmp`, `.dib`), GIF (`.gif`), TIFF (`.tif`, `.tiff`) and ICO (`.ico`). Validation checks decoded image content, not the filename or MIME type. Maximum upload size is 25 MB per file. Existing pixel limits still apply: artwork is limited to 40 million pixels and 30,000 px per side; logos to 100 million pixels and 40,000 px per side, then downsampled to 2048 px.
+Artwork and logo uploads accept PNG (`.png`), JPEG/JFIF (`.jpg`, `.jpeg`, `.jfif`), WebP (`.webp`), BMP/DIB (`.bmp`, `.dib`), GIF (`.gif`), TIFF (`.tif`, `.tiff`) and ICO (`.ico`). Validation checks decoded image content, not the filename or MIME type. Maximum upload size is 25 MB per file. Existing pixel limits still apply: artwork is limited to 40 million pixels and 30,000 px per side; logos to 100 million pixels and 40,000 px per side, then downsampled to 2048 px.
 
-Animated images use the first frame; multipage TIFFs use the first page. ICO uploads use the default (largest) icon. The final proof remains a PNG. PDF, SVG, HEIC and other unsupported formats must be exported to one of the supported raster formats first.
+The renderer verifies actual watermark pixels for all supported formats. Grayscale, grayscale+alpha, RGB, RGBA, palette PNG and CMYK JPEG inputs are handled through the same RGBA proof pipeline. Animated GIF/WebP files use the first frame; multipage TIFFs use the first page. ICO uploads use the default icon selected by Pillow. The final proof remains a PNG.
+
+PDF, SVG, HEIC/HEIF, AVIF, PSD, CDR, EPS and other formats outside the current API allowlist are rejected and should be exported to PNG, JPEG, WebP, BMP, GIF, TIFF or ICO first. AVIF may be decodable by some Pillow installations, but it is intentionally not part of this API's supported-format contract.
+
+For custom logos, an opaque white background is removed only when non-white foreground artwork is present. An intentionally all-white visible logo is preserved. An aligned black/white contrast layer is placed directly beneath watermark pixels (with no offset shadow), so the default 16% opacity remains readable on pale and dark artwork without ghosting or recoloring the logo itself.
 
 `POST /api/v1/preview-image` accepts multipart fields `image` (file) and `role` (`design` or `logo`, default `design`) and returns a decoded PNG. The web interface uses this endpoint so every supported format previews consistently, even when a browser cannot open the original format. Final rendering receives the original upload, preserving source dimensions.
 

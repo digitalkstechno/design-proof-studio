@@ -253,7 +253,7 @@
                     </div>
                     <input type="number" min="50" max="250" value="135" data-sync="watermark_spacing" />
                   </div>
-                  <p class="fine">Your original logo colors are preserved. White paper backgrounds on opaque logos are removed from watermark stamps automatically.</p>
+                  <p class="fine">Your logo colors are preserved. White paper backgrounds are removed when safe, and an aligned contrast layer keeps low-opacity watermarks readable on both light and dark artwork without ghosting.</p>
                   <div class="field">
                     <label for="watermark_scope">Watermark area</label>
                     <select id="watermark_scope" name="watermark_scope" style="width:100%; border:1px solid #ccd8d6; border-radius:12px; padding:12px 14px; font-size:.96rem; background:#fff; color:var(--text);">
@@ -718,7 +718,17 @@
       const corners = [0, (off.width - 1) * 4,
         ((off.height - 1) * off.width) * 4, (off.width * off.height - 1) * 4];
       const whiteCorners = corners.filter(i => data[i] >= 245 && data[i+1] >= 245 && data[i+2] >= 245).length;
-      const removeWhitePaper = !hasTransparency && whiteCorners >= 3;
+      let removeWhitePaper = !hasTransparency && whiteCorners >= 3;
+      if (removeWhitePaper) {
+        // Do not erase an intentionally all-white logo. Only remove a white
+        // paper background when some non-white foreground ink actually exists.
+        let hasForegroundInk = false;
+        for (let i = 0; i < data.length; i += 4) {
+          const luminance = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+          if (luminance < 248) { hasForegroundInk = true; break; }
+        }
+        if (!hasForegroundInk) removeWhitePaper = false;
+      }
       for (let i = 0; i < data.length; i += 4) {
         let matte = 1;
         if (removeWhitePaper) {
@@ -739,6 +749,37 @@
       rctx.translate(rotatedW / 2, rotatedH / 2);
       rctx.rotate(rad);
       rctx.drawImage(off, -off.width / 2, -off.height / 2);
+
+      // Match the server's contrast-safe watermark. Keep the contrast mask
+      // aligned with the logo; an offset copy creates ghosted edges in thumbnails.
+      const sampleCanvas = document.createElement('canvas');
+      sampleCanvas.width = 32;
+      sampleCanvas.height = 32;
+      const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true });
+      sampleCtx.drawImage(
+        context.canvas,
+        bodyLeft * previewScale,
+        bodyTop * previewScale,
+        Math.max(1, regionWidth * previewScale),
+        Math.max(1, box.height * previewScale),
+        0, 0, sampleCanvas.width, sampleCanvas.height
+      );
+      const samplePixels = sampleCtx.getImageData(0, 0, sampleCanvas.width, sampleCanvas.height).data;
+      let luminanceTotal = 0;
+      for (let i = 0; i < samplePixels.length; i += 4) {
+        luminanceTotal += 0.2126 * samplePixels[i] + 0.7152 * samplePixels[i + 1] + 0.0722 * samplePixels[i + 2];
+      }
+      const regionLuma = luminanceTotal / Math.max(1, samplePixels.length / 4);
+      const contrast = document.createElement('canvas');
+      contrast.width = rotated.width;
+      contrast.height = rotated.height;
+      const contrastCtx = contrast.getContext('2d');
+      contrastCtx.drawImage(rotated, 0, 0);
+      contrastCtx.globalCompositeOperation = 'source-in';
+      contrastCtx.globalAlpha = 0.85;
+      contrastCtx.fillStyle = regionLuma >= 150 ? '#000000' : '#ffffff';
+      contrastCtx.fillRect(0, 0, contrast.width, contrast.height);
+
       const stepX = Math.max(60, Math.round(regionWidth * 0.16 * watermarkSpacing)) * previewScale;
       const stepY = Math.max(60, Math.round(172 * layout.scale * watermarkSpacing)) * previewScale;
       const leftPx = bodyLeft * previewScale;
@@ -764,11 +805,16 @@
       const minY = topPx + topInset;
       const maxY = bottomPx - bottomInset - rotated.height;
 
+      const drawStamp = (x, y) => {
+        context.drawImage(contrast, Math.round(x), Math.round(y));
+        context.drawImage(rotated, Math.round(x), Math.round(y));
+      };
+
       const drawRow = (row, y) => {
         // Very narrow areas get one centered, fully visible mark.
         if (maxX < minX) {
           const centeredX = Math.max(leftPx, (leftPx + rightPx - rotated.width) / 2);
-          context.drawImage(rotated, Math.round(centeredX), Math.round(y));
+          drawStamp(centeredX, y);
           return;
         }
 
@@ -779,7 +825,7 @@
         if (x > maxX) x = (minX + maxX) / 2;
 
         for (; x <= maxX + 0.5; x += stepX) {
-          context.drawImage(rotated, Math.round(x), Math.round(y));
+          drawStamp(x, y);
         }
       };
 
@@ -1152,8 +1198,13 @@
         downloadBtn.href = assets.generatedUrl;
         downloadBtn.download = `proof-${slug}.png`;
         downloadBtn.removeAttribute('aria-disabled');
-        resultInfo.textContent = 'Final PNG ready for download';
-        setStatus('Final PNG generated successfully.');
+        const watermarkApplied = response.headers.get('X-Watermark-Applied');
+        resultInfo.textContent = watermarkApplied === 'true'
+          ? 'Final PNG ready · watermark applied'
+          : 'Final PNG ready · watermark disabled';
+        setStatus(watermarkApplied === 'true'
+          ? 'Final PNG generated successfully with watermark.'
+          : 'Final PNG generated successfully without watermark.');
         const sw = response.headers.get('X-Source-Design-Width');
         const sh = response.headers.get('X-Source-Design-Height');
         const rw = response.headers.get('X-Rendered-Design-Width');

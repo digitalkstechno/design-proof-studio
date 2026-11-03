@@ -12,7 +12,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageStat
 
 MAX_SOURCE_PIXELS = 40_000_000
 MAX_PAGE_PIXELS = 85_000_000
@@ -184,7 +184,10 @@ def open_image(data: bytes, label: str) -> Image.Image:
                 image = ImageOps.exif_transpose(opened)
                 if max(image.size) > LOGO_RENDER_EDGE:
                     image.thumbnail((LOGO_RENDER_EDGE, LOGO_RENDER_EDGE), Image.Resampling.LANCZOS)
-                return image.convert("RGBA")
+                image = image.convert("RGBA")
+                if image.getchannel("A").getbbox() is None:
+                    raise RenderError("Logo has no visible pixels. Upload a logo with visible artwork.")
+                return image
             if not (0 < w <= MAX_EDGE and 0 < h <= MAX_EDGE) or w * h > MAX_SOURCE_PIXELS:
                 raise RenderError(f"{label} is too large (maximum 40 million pixels and 30,000 px per side).")
             opened.load()
@@ -273,12 +276,20 @@ def _watermark_logo(logo: Image.Image, target_width: int, opacity: float) -> Ima
         white_corners = sum(all(c >= 245 for c in rgb) for rgb in corners)
         if white_corners >= 3:
             # White background -> alpha=0; colored logo ink stays original RGB.
+            # If that heuristic would erase the *entire* logo (for example an
+            # intentionally white logo), keep the authored opaque pixels instead
+            # of silently producing a proof with no watermark.
             matte = ImageOps.grayscale(thumb.convert("RGB"))
-            source_a = matte.point(lambda v: round(max(0, min(1, (248 - v) / 24)) * 255))
+            matte_alpha = matte.point(lambda v: round(max(0, min(1, (248 - v) / 24)) * 255))
+            if matte_alpha.getbbox() is not None:
+                source_a = matte_alpha
     alpha = source_a.point(lambda a: round(a * opacity))
     original_colors = thumb.copy()
     original_colors.putalpha(alpha)
-    return original_colors.rotate(28, expand=True, resample=Image.Resampling.BICUBIC)
+    rotated = original_colors.rotate(28, expand=True, resample=Image.Resampling.BICUBIC)
+    if opacity > 0 and rotated.getchannel("A").getbbox() is None:
+        raise RenderError("Logo has no visible pixels after watermark processing.")
+    return rotated
 
 
 def _watermark(page: Image.Image, logo: Image.Image, box: tuple[int, int, int, int], scale: float,
@@ -306,6 +317,17 @@ def _watermark(page: Image.Image, logo: Image.Image, box: tuple[int, int, int, i
     step_y = max(60, round(172 * scale * spacing))
     layer = Image.new("RGBA", (region_w, region_h), (255, 255, 255, 0))
 
+    # Place a contrast-tinted support layer exactly beneath each logo pixel.
+    # Do not offset the mask: a displaced duplicate looks like blurry/ghosted
+    # lettering when proofs are reduced to small design cards.
+    sample = page.crop((x0, y0, x1, y1)).convert("L")
+    sample.thumbnail((64, 64), Image.Resampling.BILINEAR)
+    region_luma = ImageStat.Stat(sample).mean[0] if sample.width and sample.height else 255
+    contrast_rgb = (0, 0, 0) if region_luma >= 150 else (255, 255, 255)
+    contrast = Image.new("RGBA", mark.size, (*contrast_rgb, 0))
+    contrast.putalpha(mark.getchannel("A").point(lambda a: round(a * 0.85)))
+    stamps_drawn = 0
+
     # Insets scale with the rotated mark, so changing watermark size also moves
     # the first/last rows naturally instead of leaving a fixed clipped row.
     side_inset = max(2, round(mark.width * 0.10))
@@ -317,11 +339,17 @@ def _watermark(page: Image.Image, logo: Image.Image, box: tuple[int, int, int, i
     min_y = top_inset
     max_y = region_h - bottom_inset - mark.height
 
+    def paste_stamp(x: int, y: int) -> None:
+        nonlocal stamps_drawn
+        layer.alpha_composite(contrast, (x, y))
+        layer.alpha_composite(mark, (x, y))
+        stamps_drawn += 1
+
     def paste_row(row_idx: int, y: float) -> None:
         # Very narrow areas still get one centered, fully visible mark.
         if max_x < min_x:
             x = max(0, round((region_w - mark.width) / 2))
-            layer.alpha_composite(mark, (x, round(y)))
+            paste_stamp(x, round(y))
             return
 
         stagger = step_x / 2 if row_idx % 2 else 0
@@ -333,7 +361,7 @@ def _watermark(page: Image.Image, logo: Image.Image, box: tuple[int, int, int, i
             x = (min_x + max_x) / 2
 
         while x <= max_x + 0.5:
-            layer.alpha_composite(mark, (round(x), round(y)))
+            paste_stamp(round(x), round(y))
             x += step_x
 
     if max_y < min_y:
@@ -355,6 +383,8 @@ def _watermark(page: Image.Image, logo: Image.Image, box: tuple[int, int, int, i
         for row_idx, y in enumerate(row_positions):
             paste_row(row_idx, y)
 
+    if stamps_drawn == 0:
+        raise RenderError("Watermark could not be placed inside the selected area.")
     page.alpha_composite(layer, (x0, y0))
 
 

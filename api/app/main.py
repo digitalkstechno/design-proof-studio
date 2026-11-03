@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
-from app.renderer import MAX_UPLOAD_BYTES, SUPPORTED_IMAGE_LABEL, ProofFields, ProofStyle, RenderError, font_status, normalized_artwork_size, open_image, png_bytes, render_proof
+from app.renderer import MAX_UPLOAD_BYTES, SUPPORTED_IMAGE_FORMATS, SUPPORTED_IMAGE_LABEL, ProofFields, ProofStyle, RenderError, font_status, normalized_artwork_size, open_image, png_bytes, render_proof
 
 app = FastAPI(
     title="Design Proof Studio API",
@@ -20,7 +20,20 @@ app = FastAPI(
 )
 origins = [x.strip() for x in os.getenv("PROOF_ALLOWED_ORIGINS", "").split(",") if x.strip()]
 if origins:
-    app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["POST", "GET"], allow_headers=["*"], max_age=600)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_methods=["POST", "GET"],
+        allow_headers=["*"],
+        expose_headers=[
+            "Content-Disposition",
+            "X-Source-Design-Width", "X-Source-Design-Height",
+            "X-Rendered-Design-Width", "X-Rendered-Design-Height",
+            "X-Output-Width", "X-Output-Height",
+            "X-Watermark-Applied", "X-Watermark-Scope", "X-Watermark-Opacity",
+        ],
+        max_age=600,
+    )
 app_dir = Path(__file__).resolve().parent
 default_logo_path = app_dir / "assets" / "nlc-logo-default.png"
 project_root = Path(__file__).resolve().parents[2]
@@ -65,6 +78,7 @@ def defaults() -> dict:
         "watermark_size": 1.25,
         "watermark_spacing": 1.35,
         "watermark_scope": "artwork",
+        "supported_image_formats": list(SUPPORTED_IMAGE_FORMATS),
         "style": style.__dict__,
         "fonts": font_status(),
     }
@@ -185,5 +199,8 @@ async def render(
             "X-Rendered-Design-Height": str(rendered_height),
             "X-Output-Width": str(output.width),
             "X-Output-Height": str(output.height),
+            "X-Watermark-Applied": "true" if watermark_opacity > 0 else "false",
+            "X-Watermark-Scope": watermark_scope,
+            "X-Watermark-Opacity": f"{watermark_opacity:.4f}",
         },
     )
